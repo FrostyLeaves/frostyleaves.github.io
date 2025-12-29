@@ -1,0 +1,241 @@
+:root .highlight,
+:root[data-theme="white"] .highlight,
+:root[data-theme="light"] .highlight,
+:root[data-theme="classic"] .highlight {
+  color: #333;
+  background: #f8f8f8;
+}
+:root .highlight .code .comment,
+:root[data-theme="white"] .highlight .code .comment,
+:root[data-theme="light"] .highlight .code .comment,
+:root[data-theme="classic"] .highlight .code .comment,
+:root .highlight .code .quote,
+:root[data-theme="white"] .highlight .code .quote,
+:root[data-theme="light"] .highlight .code .quote,
+:root[data-theme="classic"] .highlight .code .quote {
+  color: #998;
+  font-style: italic;
+}
+:root .highlight .code .keyword,
+:root[data-theme="white"] .highlight .code .keyword,
+:root[data-theme="light"] .highlight .code .keyword,
+:root[data-theme="classic"] .highlight .code .keyword,
+:root .highlight .code .selector-tag,
+:root[data-theme="white"] .highlight .code .selector-tag,
+:root[data-theme="light"] .highlight .code .selector-tag,
+:root[data-theme="classic"] .highlight .code .selector-tag,
+:root .highlight .code .subst,
+:root[data-theme="white"] .highlight .code .subst,
+:root[data-theme="light"] .highlight .code .subst,
+:root[data-theme="classic"] .highlight .code .subst {
+  color: #333;
+  font-weight: bold;
+}
+:root .highlight .code .number,
+:root[data-theme="white"] .highlight .code .number,
+:root[data-theme="light"] .highlight .code .number,
+:root[data-theme="classic"] .highlight .code .number,
+:root .highlight .code .literal,
+:root[data-theme="white"] .highlight .code .literal,
+:root[data-theme="light"] .highlight .code .literal,
+:root[data-theme="classic"] .highlight .code .literal,
+:root .highlight .code .variable,
+:root[data-theme="white"] .highlight .code .variable,
+:root[data-theme="light"] .highlight .code .variable,
+:root[data-theme="classic"] .highlight .code .variable,
+:root .highlight .code .template-variable,
+:root[data-theme="white"] .highlight .code .template-variable,
+:root[data-theme="light"] .highlight .code .template-variable,
+:root[data-theme="classic"] .highlight .code .template-variable,
+:root .highlight .code .tag .attr,
+:root[data-theme="white"] .highlight .code .tag .attr,
+:root[data-theme="light"] .highlight .code .tag .attr,
+:root[data-theme="classic"] .highlight .code .tag .attr {
+  color: #008080;
+}
+:root .highlight .code .string,
+:root[data-theme="white"] .highlight .code .string,
+:root[data-theme="light"] .highlight .code .string,
+:root[data-theme="classic"] .highlight .code .string,
+:root .highlight .code .doctag,
+:root[data-theme="white"] .highlight .code .doctag,
+:root[data-theme="light"] .highlight .code .doctag,
+:root[data-theme="classic"] .highlight .code .doctag {
+  color: #d14;
+}
+:root .highlight .code .title,
+:root[data-theme="white"] .highlight .code .title,
+:root[data-theme="light"] .highlight .code .title,
+:root[data-theme="classic"] .highlight .code .title,
+:root .highlight .code .section,
+:root[data-theme="white"] .highlight .code .section,
+:root[data-theme="light"] .highlight .code .section,
+:root[data-theme="classic"] .highlight .code .section,
+:root .highlight .code .selector-id,
+:root[data-theme="white"] .highlight .code .selector-id,
+:root[data-theme="light"] .highlight .code .selector-id,
+:root[data-theme="classic"] .highlight .code .selector-id {
+  color: #900;
+  font-weight: bold;
+}
+:root .highlight .code .subst,
+:root[data-theme="white"] .highlight .code .subst,
+:root[data-theme="light"] .highlight .code .subst,
+:root[data-theme="classic"] .highlight .code .subst {
+  font-weight: normal;
+}
+:root .highlight .code .type,
+:root[data-theme="white"] .highlight .code .type,
+:root[data-theme="light"] .highlight .code .type,
+:root[data-theme="classic"] .highlight .code .type,
+:root .highlight .code .class .title,
+:root[data-theme="white"] .highlight .code .class .title,
+:root[data-theme="light"] .highlight .code .class .title,
+:root[data-theme="classic"] .highlight .code .class .title {
+  color: #458;
+  font-weight: bold;
+}
+:root .highlight .code .tag,
+:root[data-theme="white"] .highlight .code .tag,
+:root[data-theme="light"] .highlight .code .tag,
+:root[data-theme="classic"] .highlight .code .tag,
+:root .highlight .code .name,
+:root[data-theme="white"] .highlight .code .name,
+:root[data-theme="light"] .highlight .code .name,
+:root[data-theme="classic"] .highlight .code .name,
+:root .highlight .code .attribute,
+:root[data-theme="white"] .highlight .code .attribute,
+:root[data-theme="light"] .highlight .code .attribute,
+:root[data-theme="classic"] .highlight .code .attribute {
+  color: #000080;
+  font-weight: normal;
+}
+:root .highlight .code .regexp,
+:root[data-theme="white"] .highlight .code .regexp,
+:root[data-theme="light"] .highlight .code .regexp,
+:root[data-theme="classic"] .highlight .code .regexp,
+:root .highlight .code .link,
+:root[data-theme="white"] .highlight .code .link,
+:root[data-theme="light"] .highlight .code .link,
+:root[data-theme="classic"] .highlight .code .link {
+  color: #009926;
+}
+:root .highlight .code .symbol,
+:root[data-theme="white"] .highlight .code .symbol,
+:root[data-theme="light"] .highlight .code .symbol,
+:root[data-theme="classic"] .highlight .code .symbol,
+:root .highlight .code .bullet,
+:root[data-theme="white"] .highlight .code .bullet,
+:root[data-theme="light"] .highlight .code .bullet,
+:root[data-theme="classic"] .highlight .code .bullet {
+  color: #990073;
+}
+:root .highlight .code .built_in,
+:root[data-theme="white"] .highlight .code .built_in,
+:root[data-theme="light"] .highlight .code .built_in,
+:root[data-theme="classic"] .highlight .code .built_in,
+:root .highlight .code .builtin-name,
+:root[data-theme="white"] .highlight .code .builtin-name,
+:root[data-theme="light"] .highlight .code .builtin-name,
+:root[data-theme="classic"] .highlight .code .builtin-name {
+  color: #0086b3;
+}
+:root .highlight .code .meta,
+:root[data-theme="white"] .highlight .code .meta,
+:root[data-theme="light"] .highlight .code .meta,
+:root[data-theme="classic"] .highlight .code .meta {
+  color: #999;
+  font-weight: bold;
+}
+:root .highlight .code .deletion,
+:root[data-theme="white"] .highlight .code .deletion,
+:root[data-theme="light"] .highlight .code .deletion,
+:root[data-theme="classic"] .highlight .code .deletion {
+  background: #fdd;
+}
+:root .highlight .code .addition,
+:root[data-theme="white"] .highlight .code .addition,
+:root[data-theme="light"] .highlight .code .addition,
+:root[data-theme="classic"] .highlight .code .addition {
+  background: #dfd;
+}
+:root .highlight .code .emphasis,
+:root[data-theme="white"] .highlight .code .emphasis,
+:root[data-theme="light"] .highlight .code .emphasis,
+:root[data-theme="classic"] .highlight .code .emphasis {
+  font-style: italic;
+}
+:root .highlight .code .strong,
+:root[data-theme="white"] .highlight .code .strong,
+:root[data-theme="light"] .highlight .code .strong,
+:root[data-theme="classic"] .highlight .code .strong {
+  font-weight: bold;
+}
+:root[data-theme="dark"] .highlight {
+  background: #1d1f21;
+  color: #c5c8c6;
+/* selection color */
+}
+:root[data-theme="dark"] .highlight::selection,
+:root[data-theme="dark"] .highlight span::selection {
+  background: #373b41;
+}
+:root[data-theme="dark"] .highlight::-moz-selection,
+:root[data-theme="dark"] .highlight span::-moz-selection {
+  background: #373b41;
+}
+:root[data-theme="dark"] .highlight .code .title,
+:root[data-theme="dark"] .highlight .code .name {
+  color: #f0c674;
+}
+:root[data-theme="dark"] .highlight .code .comment,
+:root[data-theme="dark"] .highlight .code .meta,
+:root[data-theme="dark"] .highlight .code .meta .keyword {
+  color: #707880;
+}
+:root[data-theme="dark"] .highlight .code .number,
+:root[data-theme="dark"] .highlight .code .symbol,
+:root[data-theme="dark"] .highlight .code .literal,
+:root[data-theme="dark"] .highlight .code .deletion,
+:root[data-theme="dark"] .highlight .code .link {
+  color: #c66;
+}
+:root[data-theme="dark"] .highlight .code .string,
+:root[data-theme="dark"] .highlight .code .doctag,
+:root[data-theme="dark"] .highlight .code .addition,
+:root[data-theme="dark"] .highlight .code .regexp,
+:root[data-theme="dark"] .highlight .code .selector-attr,
+:root[data-theme="dark"] .highlight .code .selector-pseudo {
+  color: #b5bd68;
+}
+:root[data-theme="dark"] .highlight .code .attribute,
+:root[data-theme="dark"] .highlight .code .code,
+:root[data-theme="dark"] .highlight .code .selector-id {
+  color: #b294bb;
+}
+:root[data-theme="dark"] .highlight .code .keyword,
+:root[data-theme="dark"] .highlight .code .selector-tag,
+:root[data-theme="dark"] .highlight .code .bullet,
+:root[data-theme="dark"] .highlight .code .tag {
+  color: #81a2be;
+}
+:root[data-theme="dark"] .highlight .code .subst,
+:root[data-theme="dark"] .highlight .code .variable,
+:root[data-theme="dark"] .highlight .code .template-tag,
+:root[data-theme="dark"] .highlight .code .template-variable {
+  color: #8abeb7;
+}
+:root[data-theme="dark"] .highlight .code .type,
+:root[data-theme="dark"] .highlight .code .built_in,
+:root[data-theme="dark"] .highlight .code .builtin-name,
+:root[data-theme="dark"] .highlight .code .quote,
+:root[data-theme="dark"] .highlight .code .section,
+:root[data-theme="dark"] .highlight .code .selector-class {
+  color: #de935f;
+}
+:root[data-theme="dark"] .highlight .code .emphasis {
+  font-style: italic;
+}
+:root[data-theme="dark"] .highlight .code .strong {
+  font-weight: bold;
+}
