@@ -1,0 +1,22 @@
+<svg style="--diagram-background:#222426;--diagram-text:#e6e4e0;--diagram-accent:#f3b958;--diagram-teal:#4bc292;--diagram-blue:#009dff;--diagram-purple:#8867a5;--diagram-orange:#f3b958" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 452" class="theme-diagram" data-theme-svg="1" role="img" aria-labelledby="oit-node-bits-title oit-node-bits-desc">
+<title id="oit-node-bits-title">逐像素链表的数据布局</title>
+<desc id="oit-node-bits-desc">每个像素的 HeadBuffer 元素包含一个 32 位无符号头索引。NodeBuffer 的每个节点依次包含 Color、Depth、Next 三个 32 位无符号字段，合计 96 位，即 12 字节。下方数字为节点内的位偏移区间。</desc>
+<style>
+.theme-diagram {
+  --d-bg: var(--diagram-background, #ffffff);
+  --d-ink: var(--diagram-text, #383838);
+  --d-accent: var(--diagram-accent, #2bbc8a);
+  --d-muted: color-mix(in srgb, var(--d-ink) 68%, var(--d-bg));
+  --d-border: color-mix(in srgb, var(--d-ink) 19%, var(--d-bg));
+  --d-surface: color-mix(in srgb, var(--d-ink) 3%, var(--d-bg));
+  --d-shadow: color-mix(in srgb, #000000 35%, var(--d-bg));
+  --d-teal: var(--diagram-teal, color-mix(in srgb, var(--d-accent) 76%, var(--d-ink)));
+  --d-blue: var(--diagram-blue, color-mix(in srgb, var(--d-accent) 28%, #6c91bc));
+  --d-purple: var(--diagram-purple, color-mix(in srgb, var(--d-accent) 15%, #a18ab9));
+  --d-orange: var(--diagram-orange, color-mix(in srgb, var(--d-accent) 10%, #d3a462));
+  font-family: var(--diagram-font, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif);
+}
+.theme-diagram text { font-family: inherit; }
+</style>
+<text x="48" y="55" font-size="27" text-anchor="start" fill="var(--d-ink)">HeadBuffer[x, y]</text><text x="1032" y="55" font-size="24" text-anchor="end" fill="var(--d-muted)">32 bit · 4 B</text><rect x="48.0" y="75" width="984.0" height="100" rx="3" fill="var(--d-teal)" fill-opacity="0.14" stroke="var(--d-teal)" stroke-width="2"/><text x="540.0" y="114" font-size="29" text-anchor="middle" fill="var(--d-ink)">Head</text><text x="540.0" y="151" font-size="23" text-anchor="middle" fill="var(--d-muted)">uint32 · 32 bit</text><text x="48" y="260" font-size="27" text-anchor="start" fill="var(--d-ink)">NodeBuffer[i]</text><text x="1032" y="260" font-size="24" text-anchor="end" fill="var(--d-muted)">96 bit · 12 B</text><rect x="48.0" y="280" width="328.0" height="100" rx="3" fill="var(--d-blue)" fill-opacity="0.14" stroke="var(--d-blue)" stroke-width="2"/><text x="212.0" y="319" font-size="29" text-anchor="middle" fill="var(--d-ink)">Color</text><text x="212.0" y="356" font-size="23" text-anchor="middle" fill="var(--d-muted)">uint32 · 32 bit</text><rect x="376.0" y="280" width="328.0" height="100" rx="3" fill="var(--d-purple)" fill-opacity="0.14" stroke="var(--d-purple)" stroke-width="2"/><text x="540.0" y="319" font-size="29" text-anchor="middle" fill="var(--d-ink)">Depth</text><text x="540.0" y="356" font-size="23" text-anchor="middle" fill="var(--d-muted)">uint32 · 32 bit</text><rect x="704.0" y="280" width="328.0" height="100" rx="3" fill="var(--d-orange)" fill-opacity="0.14" stroke="var(--d-orange)" stroke-width="2"/><text x="868.0" y="319" font-size="29" text-anchor="middle" fill="var(--d-ink)">Next</text><text x="868.0" y="356" font-size="23" text-anchor="middle" fill="var(--d-muted)">uint32 · 32 bit</text><text x="212" y="416" font-size="24" text-anchor="middle" fill="var(--d-muted)">0–31</text><text x="540" y="416" font-size="24" text-anchor="middle" fill="var(--d-muted)">32–63</text><text x="868" y="416" font-size="24" text-anchor="middle" fill="var(--d-muted)">64–95</text>
+</svg>

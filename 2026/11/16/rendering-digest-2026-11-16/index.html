@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN" data-palette="green" data-palette-pref="auto" data-background="sky" data-mode="day" data-mode-pref="day">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Nanite Dynamic Wind 植被风模拟 · DoubleYe</title>
+  
+  <meta name="theme-color" content="#f0eee8">
+  <meta name="description" content="植被风动画常用材质里的 World Position Offset（WPO）偏移顶点。用在 Nanite 植被上时，除了逐顶点计算，还要处理运动后的剔除边界：材质可以任意移动顶点，开发者只能按最大位移预留空间。包围盒扩大后，一些原本可以剔除的几何也会留下来。 UE 5.9 的 Dynamic Wind 在 GPU 上模拟植物骨骼，再由 Nanite Skinning 驱动网格。它根据植物几何估算受">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Nanite Dynamic Wind 植被风模拟">
+<meta property="og:url" content="https://frostyleaves.github.io/2026/11/16/rendering-digest-2026-11-16/index.html">
+<meta property="og:site_name" content="DoubleYe">
+<meta property="og:description" content="植被风动画常用材质里的 World Position Offset（WPO）偏移顶点。用在 Nanite 植被上时，除了逐顶点计算，还要处理运动后的剔除边界：材质可以任意移动顶点，开发者只能按最大位移预留空间。包围盒扩大后，一些原本可以剔除的几何也会留下来。 UE 5.9 的 Dynamic Wind 在 GPU 上模拟植物骨骼，再由 Nanite Skinning 驱动网格。它根据植物几何估算受">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-11-16T00:00:00.000Z">
+<meta property="article:modified_time" content="2026-11-17T08:14:00.281Z">
+<meta property="article:author" content="DoubleYe">
+<meta property="article:tag" content="Nanite">
+<meta property="article:tag" content="Unreal Engine">
+<meta property="article:tag" content="植被渲染">
+<meta name="twitter:card" content="summary">
+  
+    <link rel="icon" href="/images/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" sizes="192x192" href="/images/favicon-192x192.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+  
+  
+  
+<link rel="stylesheet" href="/css/fonts.css">
+
+  
+<link rel="stylesheet" href="/css/main.css">
+
+  <style id="palette-css">:root,:root[data-palette="blue"]{--accent:#009dff;--bg-1:#009dff;--bg-2:#1f4f77;--bg-3:#1c2628}
+.tone-blue{--tone:#009dff}
+:root[data-palette="green"]{--accent:#4bc292;--bg-1:#4bc292;--bg-2:#1f5e4a;--bg-3:#1c2628}
+.tone-green{--tone:#4bc292}
+:root[data-palette="gold"]{--accent:#f3b958;--bg-1:#f3b958;--bg-2:#7e5a1e;--bg-3:#1c2628}
+.tone-gold{--tone:#f3b958}
+:root[data-palette="red"]{--accent:#fe5f55;--bg-1:#fe5f55;--bg-2:#6e2a26;--bg-3:#1c2628}
+.tone-red{--tone:#fe5f55}</style>
+  <style id="language-css">:root[lang="zh-CN"] [data-ui-lang]:not([data-ui-lang="zh-CN"]){display:none}
+:root[lang="en"] [data-ui-lang]:not([data-ui-lang="en"]){display:none}</style>
+  <script>
+    (function () {
+      // Keep reader preferences when upgrading from the theme's former name.
+      function migrate(storage, names) {
+        names.forEach(function (name) {
+          var key = 'drift-' + name;
+          if (storage.getItem(key) !== null) return;
+          var previous = storage.getItem('doubleye-' + name);
+          if (previous !== null) storage.setItem(key, previous);
+        });
+      }
+      try { migrate(localStorage, ['palette', 'background', 'mode']); } catch (e) { /* storage may be blocked */ }
+      try { migrate(sessionStorage, ['bg-time']); } catch (e) { /* storage may be blocked */ }
+      var root = document.documentElement;
+      var languages = ["zh-CN","en"], language = null;
+      try { language = localStorage.getItem('drift-language'); } catch (e) { /* storage may be blocked */ }
+      root.lang = languages.indexOf(language) >= 0 ? language : "zh-CN";
+      var names = ["blue","green","gold","red"], auto = 'green', pref = null;
+      try { pref = localStorage.getItem('drift-palette'); } catch (e) { pref = null; }
+      if (names.indexOf(pref) < 0) pref = 'auto';
+      root.setAttribute('data-palette', pref === 'auto' ? auto : pref);
+      root.setAttribute('data-palette-pref', pref);
+      var scenes = ["sky","ocean"], scene = null, mode = null;
+      try { scene = localStorage.getItem('drift-background'); mode = localStorage.getItem('drift-mode'); } catch (e) { scene = null; mode = null; }
+      if (scenes.indexOf(scene) < 0) scene = 'sky';
+      if (mode !== 'auto' && mode !== 'day' && mode !== 'night') mode = 'day';
+      root.setAttribute('data-mode-pref', mode);
+      if (mode === 'auto') mode = window.matchMedia && !window.matchMedia('(prefers-color-scheme: dark)').matches ? 'day' : 'night';
+      root.setAttribute('data-background', scene);
+      root.setAttribute('data-mode', mode);
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute('content', mode === 'day' ? '#f0eee8' : '#191a1c');
+    })();
+    window.__THEME = {
+      palettes: {"blue":{"colors":["#009dff","#1f4f77","#1c2628"],"accent":"#009dff"},"green":{"colors":["#4bc292","#1f5e4a","#1c2628"],"accent":"#4bc292"},"gold":{"colors":["#f3b958","#7e5a1e","#1c2628"],"accent":"#f3b958"},"red":{"colors":["#fe5f55","#6e2a26","#1c2628"],"accent":"#fe5f55"}},
+      auto: 'green',
+      labels: {"auto":"自动","toggle":"切换配色","copy":"复制","copied":"已复制","sceneToggle":"切换背景","scenes":{"sky":"天空","ocean":"海洋"},"modeToggle":"切换日夜","modes":{"auto":"自动","day":"日间","night":"夜间"},"blue":"湖蓝","green":"青翠","gold":"琥珀","red":"绯红"},
+      background: {"enable":true,"style":"sky","styles":["sky","ocean"],"mode":"day","speed":1,"fps":30,"pixel_filter":740},
+      juice: {"tilt":true,"wobble":true,"foil":"pixel-glass","text":"titles"},
+      i18n: {"languages":["zh-CN","en"],"default":"zh-CN","dictionaries":{"zh-CN":{"nav.home":"首页","nav.posts":"文章","nav.categories":"分类","nav.tags":"标签","nav.archives":"归档","language.toggle":"切换语言","language.name":"中文","language.short":"中","pagination":"翻页","hero.posts":"篇文章","hero.categories":"个分类","hero.tags":"个标签","post.navigation":"文章导航","post.toc":"目录","post.reading_progress":"阅读进度","post.reading_hint":"拖动刻度跳转 · 点击章节定位","post.updated":"更新于","post.words":"字","post.minutes":"分钟","post.prev":"上一篇","post.next":"下一篇","post.license_prefix":"本文采用","post.license_suffix":"许可","post.copy":"复制","post.copied":"已复制","post.scroll_down":"向下滚动","post.tags":"标签","archive.title":"归档","archive.total_prefix":"共","archive.total_suffix":"篇","category.title":"分类","tag.title":"标签","footer.powered":"由 Hexo 驱动","palette.toggle":"切换配色","palette.auto":"自动","palette.blue":"湖蓝","palette.green":"青翠","palette.gold":"琥珀","palette.red":"绯红","background.toggle":"切换背景","background.sky":"天空","background.ocean":"海洋","mode.toggle":"切换日夜","mode.auto":"自动","mode.day":"日间","mode.night":"夜间","error404.title":"页面不存在","error404.description":"你访问的页面可能已被移动或删除。","error404.home":"返回首页","skip":"跳到正文"},"en":{"nav.home":"Home","nav.posts":"Posts","nav.categories":"Categories","nav.tags":"Tags","nav.archives":"Archives","language.toggle":"Language","language.name":"English","language.short":"EN","pagination":"Pagination","hero.posts":"posts","hero.categories":"categories","hero.tags":"tags","post.navigation":"Post navigation","post.toc":"Contents","post.reading_progress":"Reading progress","post.reading_hint":"Drag the ruler · Click a chapter","post.updated":"Updated","post.words":"words","post.minutes":"min","post.prev":"Newer","post.next":"Older","post.license_prefix":"Licensed under","post.license_suffix":"","post.copy":"Copy","post.copied":"Copied","post.scroll_down":"Scroll down","post.tags":"Tags","archive.title":"Archives","archive.total_prefix":"","archive.total_suffix":"posts","category.title":"Categories","tag.title":"Tags","footer.powered":"Powered by Hexo","palette.toggle":"Palette","palette.auto":"auto","palette.blue":"Lake","palette.green":"Jade","palette.gold":"Amber","palette.red":"Crimson","background.toggle":"Backdrop","background.sky":"Sky","background.ocean":"Ocean","mode.toggle":"Day / night","mode.auto":"Auto","mode.day":"Day","mode.night":"Night","error404.title":"Page not found","error404.description":"The page you are looking for may have been moved or removed.","error404.home":"Back to home","skip":"Skip to content"}}}
+    };
+  </script>
+<meta name="generator" content="Hexo 8.1.1"></head>
+
+
+<body class="juice-tilt juice-wobble juice-foil text-titles" data-card-effect="pixel-glass">
+  <a class="skip-link" href="#main"><span data-ui-lang="zh-CN">跳到正文</span><span data-ui-lang="en">Skip to content</span></a>
+  <div class="backdrop" id="backdrop" aria-hidden="true"><canvas class="backdrop__canvas" id="backdrop-canvas"></canvas><canvas class="backdrop__snapshot" id="backdrop-snapshot"></canvas></div>
+  
+<header class="site-header" id="site-header">
+  <div class="site-header__inner">
+    <a class="site-brand px" href="/" aria-label="DoubleYe"><span class="w"><span class="ch" style="--i:0" aria-hidden="true">D</span><span class="ch" style="--i:1" aria-hidden="true">o</span><span class="ch" style="--i:2" aria-hidden="true">u</span><span class="ch" style="--i:3" aria-hidden="true">b</span><span class="ch" style="--i:4" aria-hidden="true">l</span><span class="ch" style="--i:5" aria-hidden="true">e</span><span class="ch" style="--i:6" aria-hidden="true">Y</span><span class="ch" style="--i:7" aria-hidden="true">e</span></span></a>
+    <nav class="site-nav" data-i18n-aria-label="nav.home" aria-label="首页">
+      
+        <a class="btn btn--nav px" href="/archives/"><span data-ui-lang="zh-CN">文章</span><span data-ui-lang="en">Posts</span></a>
+      
+        <a class="btn btn--nav px" href="/categories/"><span data-ui-lang="zh-CN">分类</span><span data-ui-lang="en">Categories</span></a>
+      
+        <a class="btn btn--nav px" href="/tags/"><span data-ui-lang="zh-CN">标签</span><span data-ui-lang="en">Tags</span></a>
+      
+        <a class="btn btn--nav px" href="/"><span data-ui-lang="zh-CN">首页</span><span data-ui-lang="en">Home</span></a>
+      
+      <div class="site-controls">
+      <button class="palette-toggle" id="palette-toggle" type="button" aria-label="切换配色: 自动 · 青翠" title="切换配色: 自动 · 青翠">
+        <span class="palette-toggle__disc" aria-hidden="true"></span>
+        <span class="palette-toggle__label px" id="palette-label"><span data-ui-lang="zh-CN">自动</span><span data-ui-lang="en">auto</span></span>
+      </button>
+      
+      <button class="scene-toggle" id="background-toggle" type="button" aria-label="切换背景" title="切换背景: 天空">
+        <span class="scene-toggle__icon" aria-hidden="true">
+          <svg class="scene-icon scene-icon--sky" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="2" y="0" width="1" height="5"/><rect x="0" y="2" width="5" height="1"/><rect x="1" y="1" width="1" height="1"/><rect x="3" y="1" width="1" height="1"/><rect x="1" y="3" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="6" y="5" width="4" height="1"/><rect x="5" y="6" width="6" height="1"/><rect x="4" y="7" width="8" height="1"/><rect x="3" y="8" width="9" height="2"/></svg>
+          <svg class="scene-icon scene-icon--ocean" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="1" y="2" width="3" height="1"/><rect x="6" y="2" width="3" height="1"/><rect x="0" y="3" width="1" height="1"/><rect x="4" y="3" width="2" height="1"/><rect x="9" y="3" width="2" height="1"/><rect x="1" y="6" width="3" height="1"/><rect x="6" y="6" width="3" height="1"/><rect x="0" y="7" width="1" height="1"/><rect x="4" y="7" width="2" height="1"/><rect x="9" y="7" width="2" height="1"/><rect x="1" y="10" width="3" height="1"/><rect x="6" y="10" width="3" height="1"/><rect x="0" y="11" width="1" height="1"/><rect x="4" y="11" width="2" height="1"/><rect x="9" y="11" width="2" height="1"/></svg>
+        </span>
+        <span class="scene-toggle__label px" id="background-label"><span data-ui-lang="zh-CN">天空</span><span data-ui-lang="en">Sky</span></span>
+      </button>
+      
+      <button class="scene-toggle mode-toggle" id="mode-toggle" type="button" aria-label="切换日夜" title="切换日夜: 日间">
+        <span class="scene-toggle__icon" aria-hidden="true">
+          <svg class="mode-icon mode-icon--auto" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="1" y="1" width="10" height="1"/><rect x="0" y="2" width="1" height="5"/><rect x="11" y="2" width="1" height="5"/><rect x="1" y="7" width="10" height="1"/><rect x="5" y="8" width="2" height="2"/><rect x="3" y="10" width="6" height="1"/></svg>
+          <svg class="mode-icon mode-icon--night" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="4" y="1" width="4" height="1"/><rect x="3" y="2" width="2" height="1"/><rect x="2" y="3" width="2" height="2"/><rect x="2" y="5" width="2" height="2"/><rect x="2" y="7" width="2" height="2"/><rect x="3" y="9" width="2" height="1"/><rect x="4" y="10" width="4" height="1"/><rect x="8" y="9" width="2" height="1"/><rect x="8" y="2" width="2" height="1"/></svg>
+          <svg class="mode-icon mode-icon--day" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="4" y="4" width="4" height="4"/><rect x="5" y="0" width="2" height="2"/><rect x="5" y="10" width="2" height="2"/><rect x="0" y="5" width="2" height="2"/><rect x="10" y="5" width="2" height="2"/><rect x="1" y="1" width="2" height="1"/><rect x="1" y="2" width="1" height="1"/><rect x="9" y="1" width="2" height="1"/><rect x="10" y="2" width="1" height="1"/><rect x="1" y="9" width="1" height="1"/><rect x="1" y="10" width="2" height="1"/><rect x="10" y="9" width="1" height="1"/><rect x="9" y="10" width="2" height="1"/></svg>
+        </span>
+        <span class="scene-toggle__label px" id="mode-label"><span data-ui-lang="zh-CN">日间</span><span data-ui-lang="en">Day</span></span>
+      </button>
+      
+      <button class="language-toggle px" id="language-toggle" type="button" title="切换语言" aria-label="切换语言"><span data-ui-lang="zh-CN">中</span><span data-ui-lang="en">EN</span></button>
+      
+      </div>
+    </nav>
+  </div>
+</header>
+
+  <main id="main" class="site-main">
+    
+<article class="post-layout has-toc" itemscope itemtype="https://schema.org/BlogPosting">
+  
+  <div class="reading-mobile" hidden role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-i18n-aria-label="post.reading_progress" aria-label="阅读进度"><span></span></div>
+  
+  <div class="post container">
+    <header class="post-header">
+      <h1 class="post-title px title-anim" itemprop="headline" aria-label="Nanite Dynamic Wind 植被风模拟"><span class="w"><span class="ch" style="--i:0" aria-hidden="true">N</span><span class="ch" style="--i:1" aria-hidden="true">a</span><span class="ch" style="--i:2" aria-hidden="true">n</span><span class="ch" style="--i:3" aria-hidden="true">i</span><span class="ch" style="--i:4" aria-hidden="true">t</span><span class="ch" style="--i:5" aria-hidden="true">e</span></span> <span class="w"><span class="ch" style="--i:6" aria-hidden="true">D</span><span class="ch" style="--i:7" aria-hidden="true">y</span><span class="ch" style="--i:8" aria-hidden="true">n</span><span class="ch" style="--i:9" aria-hidden="true">a</span><span class="ch" style="--i:10" aria-hidden="true">m</span><span class="ch" style="--i:11" aria-hidden="true">i</span><span class="ch" style="--i:12" aria-hidden="true">c</span></span> <span class="w"><span class="ch" style="--i:13" aria-hidden="true">W</span><span class="ch" style="--i:14" aria-hidden="true">i</span><span class="ch" style="--i:15" aria-hidden="true">n</span><span class="ch" style="--i:16" aria-hidden="true">d</span></span> <span class="ch" style="--i:17" aria-hidden="true">植</span><span class="ch" style="--i:18" aria-hidden="true">被</span><span class="ch" style="--i:19" aria-hidden="true">风</span><span class="ch" style="--i:20" aria-hidden="true">模</span><span class="ch" style="--i:21" aria-hidden="true">拟</span></h1>
+      
+<div class="post-meta">
+  <time class="badge badge--date px" datetime="2026-11-16T00:00:00.000Z">2026-11-16</time>
+  
+    <a class="seal tone-green px" href="/categories/%E6%AF%8F%E6%97%A5%E6%8E%A8%E8%8D%90/"><span class="seal__dot" aria-hidden="true"></span>每日推荐</a>
+  
+  <span class="badge badge--blue px post-meta__words">1,751 <span data-ui-lang="zh-CN">字</span><span data-ui-lang="en">words</span></span>
+  <span class="badge badge--red px">5 <span data-ui-lang="zh-CN">分钟</span><span data-ui-lang="en">min</span></span>
+  
+</div>
+
+    </header>
+
+    
+    <details class="toc-mobile panel">
+      <summary class="px"><span data-ui-lang="zh-CN">目录</span><span data-ui-lang="en">Contents</span><span class="toc-mobile__percent" data-reading-percent aria-hidden="true"></span></summary>
+      
+
+<nav class="toc panel" data-i18n-aria-label="post.toc" aria-label="目录">
+  <div class="toc__title px"><span data-ui-lang="zh-CN">目录</span><span data-ui-lang="en">Contents</span></div>
+  <ol class="toc-list"><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E9%AA%A8%E9%AA%BC%E5%8A%A8%E7%94%BB%E6%80%8E%E6%A0%B7%E9%85%8D%E5%90%88-Nanite"><span class="toc-list-text">骨骼动画怎样配合 Nanite</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E6%A4%8D%E7%89%A9%E5%87%A0%E4%BD%95%E6%8F%90%E4%BE%9B%E5%93%AA%E4%BA%9B%E5%8F%82%E6%95%B0"><span class="toc-list-text">植物几何提供哪些参数</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E9%A3%8E%E5%8A%9B%E6%80%8E%E6%A0%B7%E9%A9%B1%E5%8A%A8%E9%AA%A8%E9%AA%BC"><span class="toc-list-text">风力怎样驱动骨骼</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%85%B1%E4%BA%AB%E9%A3%8E%E5%8A%A8%E4%B8%8E%E5%B1%80%E9%83%A8%E4%BA%A4%E4%BA%92"><span class="toc-list-text">共享风动与局部交互</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E4%B8%8E-WPO-%E7%9A%84%E5%8F%96%E8%88%8D"><span class="toc-list-text">与 WPO 的取舍</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E6%8E%A5%E5%85%A5%E6%9D%A1%E4%BB%B6"><span class="toc-list-text">接入条件</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="toc-list-text">参考资料</span></a></li></ol>
+</nav>
+
+
+    </details>
+    
+
+    <div class="post-body panel">
+      <div class="post-content" id="drift-post-content" itemprop="articleBody" lang="zh-CN">
+        <p>植被风动画常用材质里的 World Position Offset（WPO）偏移顶点。用在 Nanite 植被上时，除了逐顶点计算，还要处理运动后的剔除边界：材质可以任意移动顶点，开发者只能按最大位移预留空间。包围盒扩大后，一些原本可以剔除的几何也会留下来。</p>
+<p>UE 5.9 的 <strong>Dynamic Wind</strong> 在 GPU 上模拟植物骨骼，再由 Nanite Skinning 驱动网格。它根据植物几何估算受力参数，共享普通风动的模拟结果，并为受到局部作用的植物分配独立模拟。本文依据 UE 5.9 文档整理；插件目前仍为 Experimental。</p>
+<span id="more"></span>
+
+<h2 id="骨骼动画怎样配合-Nanite"><a href="#骨骼动画怎样配合-Nanite" class="headerlink" title="骨骼动画怎样配合 Nanite"></a>骨骼动画怎样配合 Nanite</h2><p>Nanite Skinning 可以根据蒙皮矩阵计算变形后的包围盒，减少 WPO 所需的保守扩张。材质之间不同的 WPO 逻辑还会拆出更多 programmable raster bins，增加 GPU 调度工作；改用骨骼驱动风动画后，这条路径可以使用固定功能光栅化。<a target="_blank" rel="noopener" href="https://dev.epicgames.com/documentation/en-us/unreal-engine/nanite-foliage">Nanite Foliage 文档</a></p>
+<p>这部分由 Nanite Skinning 处理。Dynamic Wind 则负责计算骨骼怎样运动，下面从它需要的输入开始。</p>
+<h2 id="植物几何提供哪些参数"><a href="#植物几何提供哪些参数" class="headerlink" title="植物几何提供哪些参数"></a>植物几何提供哪些参数</h2><p>Dynamic Wind 在编辑阶段分析源几何和蒙皮权重，保存每根骨骼的质量、迎风面积、质心和压力中心。质量描述骨骼所承担的负载，迎风面积描述它接收风力的面积；质心和压力中心分别记录质量与风压的等效作用位置。</p>
+<p>这些数据包含骨骼所连接的子枝叶。例如，树冠的质量和受风面积会计入树干的负载。木材和叶片使用各自的密度参数：木材按体积换算质量，叶片按面积换算质量。这样，换一株形状不同的植物时，受力参数也会随几何重新计算，减少手工校准。<a target="_blank" rel="noopener" href="https://dev.epicgames.com/documentation/unreal-engine/dynamic-wind-for-nanite-foliage-in-unreal-engine">Dynamic Wind 文档</a></p>
+<h2 id="风力怎样驱动骨骼"><a href="#风力怎样驱动骨骼" class="headerlink" title="风力怎样驱动骨骼"></a>风力怎样驱动骨骼</h2><p>运行时，系统每帧计算全局风和局部作用对骨骼产生的弯曲力，再更新两种运动：</p>
+<ul>
+<li>**Sway（摇摆）**由阻力驱动，表现树干和大枝较慢的倾斜与回摆。</li>
+<li>**Flutter（颤动）**由风经过枝条产生的涡旋驱动，表现较快的细小运动；风增强时，颤动的频率和强度也随之变化。</li>
+</ul>
+<p>两种运动合成为每根骨骼的旋转。官方说明，同一根枝条使用 3 根或 10 根骨骼，总弯曲量保持一致，因此可以增加骨骼细分来描述形状，而不额外增加整根枝条的弯曲量。</p>
+<p>Epic 在 2026 年 9 月的开发答复中进一步说明了弹簧模型：Sway 使用欠阻尼振子，Flutter 使用临界阻尼振子，两者都带有惯性和阻尼。欠阻尼响应允许受力后继续回摆，临界阻尼响应则较快地收敛。这里描述的是当时面向 5.9 开发的实现。<a target="_blank" rel="noopener" href="https://forums.unrealengine.com/t/dynamicwind-plugin-roadmap-and-possibility-of-per-instance-animation/2838172">Epic 开发者答复</a></p>
+<p>每根骨骼独立进行弹簧模拟，系统没有完整的骨骼间约束求解器。前面的负载汇总提供了各骨骼的受力参数，骨骼之间的约束和接触仍不能按完整的树木动力学求解。</p>
+<h2 id="共享风动与局部交互"><a href="#共享风动与局部交互" class="headerlink" title="共享风动与局部交互"></a>共享风动与局部交互</h2><p>只受全局风影响的植物复用按风向组织的少量模拟结果，不必逐株更新独立状态。受到局部作用后，相应实例才转入独立模拟。</p>
+<p>局部作用有三种输入：</p>
+<ul>
+<li><strong>Dynamic Wind Force</strong> 提供局部空气作用，可配置方向风、径向风、旋涡等形状。</li>
+<li><strong>Push Capsule</strong> 将骨骼推出胶囊范围，用来表现角色或物体与植被的接触。</li>
+<li><strong>外部速度体积</strong> 提供空间变化的空气速度，可接入风场数据。</li>
+</ul>
+<p>转入独立模拟时，实例从当前共享运动接续，避免姿态跳变。局部作用消失后，它仍会继续模拟一段时间，再混合回共享运动。这个恢复阶段默认持续 3 秒，由 <code>DynamicWind.DemoteGracePeriod</code> 控制。延长它可以保留更长的独立运动，但也会延长实例占用模拟预算的时间。</p>
+<p>预算按网格限制，项目默认最多允许 256 个实例同时独立模拟，可通过 Max Active Instances 覆盖。超出预算的植物继续播放共享风动，无法得到本次局部作用对应的独立响应。交互覆盖范围较大时，需要同时检查实例上限和恢复时间。<a target="_blank" rel="noopener" href="https://dev.epicgames.com/documentation/unreal-engine/dynamic-wind-for-nanite-foliage-in-unreal-engine">Dynamic Wind 文档</a></p>
+<p>共享机制减少的是重复的风模拟求解。每株植物的变形、光栅化与阴影仍有成本；Nanite Foliage 文档建议通过 Animation Min Screen Size 在远处停用动画，以控制 Virtual Shadow Map 开销。<a target="_blank" rel="noopener" href="https://dev.epicgames.com/documentation/en-us/unreal-engine/nanite-foliage#naniteskinningperformancetips">Nanite Skinning 性能建议</a></p>
+<h2 id="与-WPO-的取舍"><a href="#与-WPO-的取舍" class="headerlink" title="与 WPO 的取舍"></a>与 WPO 的取舍</h2><p>对已经使用 Nanite 骨骼植被、需要局部风场或角色交互的项目，我倾向于优先评估 Dynamic Wind。它已有几何分析、接触输入和独立模拟的分配机制，新增交互可以沿这套骨骼系统实现；Nanite Skinning 也能改善 WPO 的剔除边界和光栅调度问题。</p>
+<p>已有静态植被资产则要补充骨骼、蒙皮和模拟组数据。运行时还需要为局部交互安排实例预算，并接受独立弹簧模型的近似。仅需轻微周期摆动、已有成熟 WPO 资产的项目，迁移的收益未必足以抵消资产改造工作。我会先用代表性植被验证画面，再在相同场景中比较 GPU 时间。</p>
+<h2 id="接入条件"><a href="#接入条件" class="headerlink" title="接入条件"></a>接入条件</h2><p>Dynamic Wind 需要 Shader Model 6。PVE 输出的 Nanite Assemblies 网格还需要启用 Nanite Foliage 才能正确构建。对于非 Nanite 骨骼网格，官方要求在 LOD 构建设置中启用 Optimize For Instancing，否则 Dynamic Wind 会跳过该网格。</p>
+<p>模拟组数据通过 PVE、USD 或 JSON 导入，目前不能在编辑器中手工创建。实例组件必须使用 Dynamic Wind Data 作为 Transform Provider，才能注册到风系统。几何分析需要源几何和蒙皮权重，未完成或失败时植物会停在绑定姿态。</p>
+<p>低端硬件可将 <code>DynamicWind.Mode</code> 设为 0，使用无逐植物状态的参数化动画；这个模式不支持局部力和推挤胶囊。</p>
+<p>以上条件以 <a target="_blank" rel="noopener" href="https://dev.epicgames.com/documentation/unreal-engine/dynamic-wind-for-nanite-foliage-in-unreal-engine">UE 5.9 Dynamic Wind 专页</a>为准。Nanite Foliage 总览页仍保留“只支持全局风、没有玩家碰撞”的旧限制，与专页不一致，本文按专页介绍交互功能。Epic 仍提醒谨慎将 Experimental 功能用于正式发布项目。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://dev.epicgames.com/documentation/unreal-engine/dynamic-wind-for-nanite-foliage-in-unreal-engine">Dynamic Wind for Nanite Foliage，UE 5.9 文档</a></li>
+<li><a target="_blank" rel="noopener" href="https://dev.epicgames.com/documentation/en-us/unreal-engine/nanite-foliage">Nanite Foliage，WPO、蒙皮与性能说明</a></li>
+<li><a target="_blank" rel="noopener" href="https://forums.unrealengine.com/t/dynamicwind-plugin-roadmap-and-possibility-of-per-instance-animation/2838172">DynamicWind Plugin Roadmap and Possibility of Per-Instance Animation，2026 年 9 月开发讨论</a></li>
+<li><a target="_blank" rel="noopener" href="https://dev.epicgames.com/documentation/unreal-engine/unreal-engine-5-9-release-notes">Unreal Engine 5.9 Preview 更新说明</a></li>
+</ul>
+
+      </div>
+      
+        <p class="post-license">
+          <span data-ui-lang="zh-CN">本文采用</span><span data-ui-lang="en">Licensed under</span>
+          <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="license noopener">CC BY-NC 4.0</a>
+          <span data-ui-lang="zh-CN">许可</span><span data-ui-lang="en"></span>
+        </p>
+      
+    </div>
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a class="chip px" href="/tags/Unreal-Engine/">#Unreal Engine</a>
+          
+            <a class="chip px" href="/tags/Nanite/">#Nanite</a>
+          
+            <a class="chip px" href="/tags/%E6%A4%8D%E8%A2%AB%E6%B8%B2%E6%9F%93/">#植被渲染</a>
+          
+        </div>
+      
+      
+      <nav class="post-nav" data-i18n-aria-label="post.navigation" aria-label="文章导航">
+        
+          <a class="post-nav__item post-nav__prev card" data-tilt href="/2026/11/17/rendering-digest-2026-11-17/">
+            <span class="card__inner">
+              <span class="post-nav__label px"><span data-ui-lang="zh-CN">上一篇</span><span data-ui-lang="en">Newer</span> · 2026-11-17</span>
+              <span class="post-nav__title">透明度混合OIT介绍</span>
+              <span class="card__foil" aria-hidden="true"></span>
+            </span>
+          </a>
+        
+        
+          <a class="post-nav__item post-nav__next card" data-tilt href="/2025/12/20/VulkanMemoryAllocator/">
+            <span class="card__inner">
+              <span class="post-nav__label px"><span data-ui-lang="zh-CN">下一篇</span><span data-ui-lang="en">Older</span> · 2025-12-20</span>
+              <span class="post-nav__title">Vulkan Memory Allocator 笔记</span>
+              <span class="card__foil" aria-hidden="true"></span>
+            </span>
+          </a>
+        
+      </nav>
+      
+    </footer>
+
+    
+
+<section class="comments panel" id="comments"
+  data-repo="FrostyLeaves/frostyleaves.github.io"
+  data-issue-term="og:title"
+  data-label="utterances"></section>
+
+
+  </div>
+
+  
+  <aside class="post-aside">
+    
+
+<nav class="reading-rail" data-i18n-aria-label="post.toc" aria-label="目录">
+  <div class="reading-rail__head px">
+    <span><span data-ui-lang="zh-CN">目录</span><span data-ui-lang="en">Contents</span></span>
+    <span class="reading-rail__percent" data-reading-percent aria-hidden="true">000%</span>
+  </div>
+  <div class="reading-rail__stage">
+    <div class="reading-rail__chapters"><ol class="toc-list"><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E9%AA%A8%E9%AA%BC%E5%8A%A8%E7%94%BB%E6%80%8E%E6%A0%B7%E9%85%8D%E5%90%88-Nanite"><span class="toc-list-text">骨骼动画怎样配合 Nanite</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E6%A4%8D%E7%89%A9%E5%87%A0%E4%BD%95%E6%8F%90%E4%BE%9B%E5%93%AA%E4%BA%9B%E5%8F%82%E6%95%B0"><span class="toc-list-text">植物几何提供哪些参数</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E9%A3%8E%E5%8A%9B%E6%80%8E%E6%A0%B7%E9%A9%B1%E5%8A%A8%E9%AA%A8%E9%AA%BC"><span class="toc-list-text">风力怎样驱动骨骼</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%85%B1%E4%BA%AB%E9%A3%8E%E5%8A%A8%E4%B8%8E%E5%B1%80%E9%83%A8%E4%BA%A4%E4%BA%92"><span class="toc-list-text">共享风动与局部交互</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E4%B8%8E-WPO-%E7%9A%84%E5%8F%96%E8%88%8D"><span class="toc-list-text">与 WPO 的取舍</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E6%8E%A5%E5%85%A5%E6%9D%A1%E4%BB%B6"><span class="toc-list-text">接入条件</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="toc-list-text">参考资料</span></a></li></ol></div>
+    <div class="reading-rail__ruler" role="scrollbar" tabindex="0" aria-controls="drift-post-content" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-i18n-aria-label="post.reading_progress" aria-label="阅读进度">
+      <div class="reading-rail__ticks" aria-hidden="true">
+        
+        <span class="reading-rail__tick is-major" style="top: 0%"><b>0</b></span>
+        
+        <span class="reading-rail__tick" style="top: 1%"></span>
+        
+        <span class="reading-rail__tick" style="top: 2%"></span>
+        
+        <span class="reading-rail__tick" style="top: 3%"></span>
+        
+        <span class="reading-rail__tick" style="top: 4%"></span>
+        
+        <span class="reading-rail__tick" style="top: 5%"></span>
+        
+        <span class="reading-rail__tick" style="top: 6%"></span>
+        
+        <span class="reading-rail__tick" style="top: 7%"></span>
+        
+        <span class="reading-rail__tick" style="top: 8%"></span>
+        
+        <span class="reading-rail__tick" style="top: 9%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 10%"><b>10</b></span>
+        
+        <span class="reading-rail__tick" style="top: 11%"></span>
+        
+        <span class="reading-rail__tick" style="top: 12%"></span>
+        
+        <span class="reading-rail__tick" style="top: 13%"></span>
+        
+        <span class="reading-rail__tick" style="top: 14%"></span>
+        
+        <span class="reading-rail__tick" style="top: 15%"></span>
+        
+        <span class="reading-rail__tick" style="top: 16%"></span>
+        
+        <span class="reading-rail__tick" style="top: 17%"></span>
+        
+        <span class="reading-rail__tick" style="top: 18%"></span>
+        
+        <span class="reading-rail__tick" style="top: 19%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 20%"><b>20</b></span>
+        
+        <span class="reading-rail__tick" style="top: 21%"></span>
+        
+        <span class="reading-rail__tick" style="top: 22%"></span>
+        
+        <span class="reading-rail__tick" style="top: 23%"></span>
+        
+        <span class="reading-rail__tick" style="top: 24%"></span>
+        
+        <span class="reading-rail__tick" style="top: 25%"></span>
+        
+        <span class="reading-rail__tick" style="top: 26%"></span>
+        
+        <span class="reading-rail__tick" style="top: 27%"></span>
+        
+        <span class="reading-rail__tick" style="top: 28%"></span>
+        
+        <span class="reading-rail__tick" style="top: 29%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 30%"><b>30</b></span>
+        
+        <span class="reading-rail__tick" style="top: 31%"></span>
+        
+        <span class="reading-rail__tick" style="top: 32%"></span>
+        
+        <span class="reading-rail__tick" style="top: 33%"></span>
+        
+        <span class="reading-rail__tick" style="top: 34%"></span>
+        
+        <span class="reading-rail__tick" style="top: 35%"></span>
+        
+        <span class="reading-rail__tick" style="top: 36%"></span>
+        
+        <span class="reading-rail__tick" style="top: 37%"></span>
+        
+        <span class="reading-rail__tick" style="top: 38%"></span>
+        
+        <span class="reading-rail__tick" style="top: 39%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 40%"><b>40</b></span>
+        
+        <span class="reading-rail__tick" style="top: 41%"></span>
+        
+        <span class="reading-rail__tick" style="top: 42%"></span>
+        
+        <span class="reading-rail__tick" style="top: 43%"></span>
+        
+        <span class="reading-rail__tick" style="top: 44%"></span>
+        
+        <span class="reading-rail__tick" style="top: 45%"></span>
+        
+        <span class="reading-rail__tick" style="top: 46%"></span>
+        
+        <span class="reading-rail__tick" style="top: 47%"></span>
+        
+        <span class="reading-rail__tick" style="top: 48%"></span>
+        
+        <span class="reading-rail__tick" style="top: 49%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 50%"><b>50</b></span>
+        
+        <span class="reading-rail__tick" style="top: 51%"></span>
+        
+        <span class="reading-rail__tick" style="top: 52%"></span>
+        
+        <span class="reading-rail__tick" style="top: 53%"></span>
+        
+        <span class="reading-rail__tick" style="top: 54%"></span>
+        
+        <span class="reading-rail__tick" style="top: 55%"></span>
+        
+        <span class="reading-rail__tick" style="top: 56%"></span>
+        
+        <span class="reading-rail__tick" style="top: 57%"></span>
+        
+        <span class="reading-rail__tick" style="top: 58%"></span>
+        
+        <span class="reading-rail__tick" style="top: 59%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 60%"><b>60</b></span>
+        
+        <span class="reading-rail__tick" style="top: 61%"></span>
+        
+        <span class="reading-rail__tick" style="top: 62%"></span>
+        
+        <span class="reading-rail__tick" style="top: 63%"></span>
+        
+        <span class="reading-rail__tick" style="top: 64%"></span>
+        
+        <span class="reading-rail__tick" style="top: 65%"></span>
+        
+        <span class="reading-rail__tick" style="top: 66%"></span>
+        
+        <span class="reading-rail__tick" style="top: 67%"></span>
+        
+        <span class="reading-rail__tick" style="top: 68%"></span>
+        
+        <span class="reading-rail__tick" style="top: 69%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 70%"><b>70</b></span>
+        
+        <span class="reading-rail__tick" style="top: 71%"></span>
+        
+        <span class="reading-rail__tick" style="top: 72%"></span>
+        
+        <span class="reading-rail__tick" style="top: 73%"></span>
+        
+        <span class="reading-rail__tick" style="top: 74%"></span>
+        
+        <span class="reading-rail__tick" style="top: 75%"></span>
+        
+        <span class="reading-rail__tick" style="top: 76%"></span>
+        
+        <span class="reading-rail__tick" style="top: 77%"></span>
+        
+        <span class="reading-rail__tick" style="top: 78%"></span>
+        
+        <span class="reading-rail__tick" style="top: 79%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 80%"><b>80</b></span>
+        
+        <span class="reading-rail__tick" style="top: 81%"></span>
+        
+        <span class="reading-rail__tick" style="top: 82%"></span>
+        
+        <span class="reading-rail__tick" style="top: 83%"></span>
+        
+        <span class="reading-rail__tick" style="top: 84%"></span>
+        
+        <span class="reading-rail__tick" style="top: 85%"></span>
+        
+        <span class="reading-rail__tick" style="top: 86%"></span>
+        
+        <span class="reading-rail__tick" style="top: 87%"></span>
+        
+        <span class="reading-rail__tick" style="top: 88%"></span>
+        
+        <span class="reading-rail__tick" style="top: 89%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 90%"><b>90</b></span>
+        
+        <span class="reading-rail__tick" style="top: 91%"></span>
+        
+        <span class="reading-rail__tick" style="top: 92%"></span>
+        
+        <span class="reading-rail__tick" style="top: 93%"></span>
+        
+        <span class="reading-rail__tick" style="top: 94%"></span>
+        
+        <span class="reading-rail__tick" style="top: 95%"></span>
+        
+        <span class="reading-rail__tick" style="top: 96%"></span>
+        
+        <span class="reading-rail__tick" style="top: 97%"></span>
+        
+        <span class="reading-rail__tick" style="top: 98%"></span>
+        
+        <span class="reading-rail__tick" style="top: 99%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 100%"><b>100</b></span>
+        
+      </div>
+      <span class="reading-rail__cursor" aria-hidden="true"></span>
+    </div>
+  </div>
+  <div class="reading-rail__hint"><span data-ui-lang="zh-CN">拖动刻度跳转 · 点击章节定位</span><span data-ui-lang="en">Drag the ruler · Click a chapter</span></div>
+</nav>
+
+
+  </aside>
+  
+</article>
+
+  </main>
+  
+<footer class="site-footer">
+  <div class="site-footer__inner">
+    <span class="site-footer__mark" aria-hidden="true"><svg viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" fill="currentColor"><rect x="5" y="1" width="2" height="10"/><rect x="1" y="5" width="10" height="2"/><rect x="3" y="3" width="1" height="1"/><rect x="8" y="3" width="1" height="1"/><rect x="3" y="8" width="1" height="1"/><rect x="8" y="8" width="1" height="1"/></svg></span>
+    <span>© 2025–2026 DoubleYe</span>
+    <span class="site-footer__links">
+      
+      
+      <a href="https://hexo.io" target="_blank" rel="noopener"><span data-ui-lang="zh-CN">由 Hexo 驱动</span><span data-ui-lang="en">Powered by Hexo</span></a>
+    </span>
+  </div>
+</footer>
+
+  
+<script src="/js/language.js"></script>
+
+  
+<script src="/js/background.js"></script>
+
+  
+<script src="/js/theme.js"></script>
+
+  
+<script src="/js/reading-progress.js"></script>
+
+</body>
+</html>

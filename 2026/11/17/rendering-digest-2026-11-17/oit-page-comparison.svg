@@ -1,0 +1,82 @@
+<svg style="--diagram-background:#222426;--diagram-text:#e6e4e0;--diagram-accent:#f3b958;--diagram-teal:#4bc292;--diagram-blue:#009dff;--diagram-purple:#8867a5;--diagram-orange:#f3b958" xmlns="http://www.w3.org/2000/svg" viewBox="0 110 1080 480" class="theme-diagram" data-theme-svg="1" role="img" aria-labelledby="oit-page-comparison-title oit-page-comparison-desc"><title id="oit-page-comparison-title">同样五个片元，两种存法</title><desc id="oit-page-comparison-desc">逐片元链表五个节点需要五次节点分配与五个链接项；四槽片元页用两个页分配与两个链接项，页内连续，末页三个槽空置。像素head不计入链接数。</desc><style>
+.theme-diagram {
+  --d-bg: var(--diagram-background, #ffffff);
+  --d-ink: var(--diagram-text, #383838);
+  --d-accent: var(--diagram-accent, #2bbc8a);
+  --d-muted: color-mix(in srgb, var(--d-ink) 68%, var(--d-bg));
+  --d-border: color-mix(in srgb, var(--d-ink) 19%, var(--d-bg));
+  --d-surface: color-mix(in srgb, var(--d-ink) 3%, var(--d-bg));
+  --d-shadow: color-mix(in srgb, #000000 35%, var(--d-bg));
+  --d-teal: var(--diagram-teal, color-mix(in srgb, var(--d-accent) 76%, var(--d-ink)));
+  --d-blue: var(--diagram-blue, color-mix(in srgb, var(--d-accent) 28%, #6c91bc));
+  --d-purple: var(--diagram-purple, color-mix(in srgb, var(--d-accent) 15%, #a18ab9));
+  --d-orange: var(--diagram-orange, color-mix(in srgb, var(--d-accent) 10%, #d3a462));
+  font-family: var(--diagram-font, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif);
+}
+.theme-diagram text { font-family: inherit; }
+</style><defs><marker id="oit-page-comparison-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10Z" fill="context-stroke"/></marker></defs>
+<rect x="0" y="0" width="1080" height="660" rx="0" fill="var(--d-bg)" stroke="var(--d-bg)" stroke-width="2"/>
+
+
+<rect x="28" y="115" width="1024" height="208" rx="12" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="2"/>
+<text x="48" y="155" fill="var(--d-ink)" font-size="25" font-weight="600" text-anchor="start">逐片元节点</text>
+
+<text x="49" y="234" fill="var(--d-ink)" font-size="22" font-weight="600" text-anchor="start">head</text>
+<path d="M 110 225 L 157 225" fill="none" stroke="var(--d-accent)" stroke-width="3" marker-end="url(#oit-page-comparison-arrow)"/>
+<rect x="175" y="183" width="96" height="87" rx="12" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="2"/>
+<path d="M223 196 L248 210 L248 238 L223 252 L198 238 L198 210Z" fill="var(--d-accent)" fill-opacity="0.22" stroke="var(--d-accent)" stroke-width="2"/>
+<text x="223" y="232" fill="var(--d-ink)" font-size="25" font-weight="600" text-anchor="middle">5</text>
+<path d="M 271 225 L 322 225" fill="none" stroke="var(--d-accent)" stroke-width="3" marker-end="url(#oit-page-comparison-arrow)"/>
+<rect x="339" y="183" width="96" height="87" rx="12" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="2"/>
+<path d="M387 196 L412 210 L412 238 L387 252 L362 238 L362 210Z" fill="var(--d-teal)" fill-opacity="0.22" stroke="var(--d-teal)" stroke-width="2"/>
+<text x="387" y="232" fill="var(--d-ink)" font-size="25" font-weight="600" text-anchor="middle">4</text>
+<path d="M 435 225 L 486 225" fill="none" stroke="var(--d-accent)" stroke-width="3" marker-end="url(#oit-page-comparison-arrow)"/>
+<rect x="503" y="183" width="96" height="87" rx="12" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="2"/>
+<path d="M551 196 L576 210 L576 238 L551 252 L526 238 L526 210Z" fill="var(--d-purple)" fill-opacity="0.22" stroke="var(--d-purple)" stroke-width="2"/>
+<text x="551" y="232" fill="var(--d-ink)" font-size="25" font-weight="600" text-anchor="middle">3</text>
+<path d="M 599 225 L 650 225" fill="none" stroke="var(--d-accent)" stroke-width="3" marker-end="url(#oit-page-comparison-arrow)"/>
+<rect x="667" y="183" width="96" height="87" rx="12" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="2"/>
+<path d="M715 196 L740 210 L740 238 L715 252 L690 238 L690 210Z" fill="var(--d-orange)" fill-opacity="0.22" stroke="var(--d-orange)" stroke-width="2"/>
+<text x="715" y="232" fill="var(--d-ink)" font-size="25" font-weight="600" text-anchor="middle">2</text>
+<path d="M 763 225 L 814 225" fill="none" stroke="var(--d-accent)" stroke-width="3" marker-end="url(#oit-page-comparison-arrow)"/>
+<rect x="831" y="183" width="96" height="87" rx="12" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="2"/>
+<path d="M879 196 L904 210 L904 238 L879 252 L854 238 L854 210Z" fill="var(--d-blue)" fill-opacity="0.22" stroke="var(--d-blue)" stroke-width="2"/>
+<text x="879" y="232" fill="var(--d-ink)" font-size="25" font-weight="600" text-anchor="middle">1</text>
+<path d="M 927 225 L 978 225" fill="none" stroke="var(--d-accent)" stroke-width="3" marker-end="url(#oit-page-comparison-arrow)"/>
+<text x="1012" y="234" fill="var(--d-muted)" font-size="20" font-weight="400" text-anchor="middle">∅</text>
+
+<rect x="28" y="343" width="1024" height="244" rx="12" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="2"/>
+<text x="48" y="384" fill="var(--d-ink)" font-size="25" font-weight="600" text-anchor="start">逐像素片元页</text>
+
+<text x="49" y="475" fill="var(--d-ink)" font-size="22" font-weight="600" text-anchor="start">head</text>
+<path d="M 110 466 L 169 466" fill="none" stroke="var(--d-accent)" stroke-width="3" marker-end="url(#oit-page-comparison-arrow)"/>
+<rect x="180" y="405" width="300" height="124" rx="12" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="2"/>
+<text x="464" y="433" fill="var(--d-ink)" font-size="21" font-weight="600" text-anchor="end">P1</text>
+<rect x="197" y="448" width="59" height="63" rx="6" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="2"/>
+<path d="M226.5 451 L251.5 465 L251.5 493 L226.5 507 L201.5 493 L201.5 465Z" fill="var(--d-accent)" fill-opacity="0.22" stroke="var(--d-accent)" stroke-width="2"/>
+<text x="226.5" y="487" fill="var(--d-ink)" font-size="25" font-weight="600" text-anchor="middle">5</text>
+<rect x="264" y="448" width="59" height="63" rx="6" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="2"/>
+<rect x="331" y="448" width="59" height="63" rx="6" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="2"/>
+<rect x="398" y="448" width="59" height="63" rx="6" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="2"/>
+<rect x="615" y="405" width="300" height="124" rx="12" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="2"/>
+<text x="899" y="433" fill="var(--d-ink)" font-size="21" font-weight="600" text-anchor="end">P0</text>
+<rect x="632" y="448" width="59" height="63" rx="6" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="2"/>
+<path d="M661.5 451 L686.5 465 L686.5 493 L661.5 507 L636.5 493 L636.5 465Z" fill="var(--d-blue)" fill-opacity="0.22" stroke="var(--d-blue)" stroke-width="2"/>
+<text x="661.5" y="487" fill="var(--d-ink)" font-size="25" font-weight="600" text-anchor="middle">1</text>
+<rect x="699" y="448" width="59" height="63" rx="6" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="2"/>
+<path d="M728.5 451 L753.5 465 L753.5 493 L728.5 507 L703.5 493 L703.5 465Z" fill="var(--d-orange)" fill-opacity="0.22" stroke="var(--d-orange)" stroke-width="2"/>
+<text x="728.5" y="487" fill="var(--d-ink)" font-size="25" font-weight="600" text-anchor="middle">2</text>
+<rect x="766" y="448" width="59" height="63" rx="6" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="2"/>
+<path d="M795.5 451 L820.5 465 L820.5 493 L795.5 507 L770.5 493 L770.5 465Z" fill="var(--d-purple)" fill-opacity="0.22" stroke="var(--d-purple)" stroke-width="2"/>
+<text x="795.5" y="487" fill="var(--d-ink)" font-size="25" font-weight="600" text-anchor="middle">3</text>
+<rect x="833" y="448" width="59" height="63" rx="6" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="2"/>
+<path d="M862.5 451 L887.5 465 L887.5 493 L862.5 507 L837.5 493 L837.5 465Z" fill="var(--d-teal)" fill-opacity="0.22" stroke="var(--d-teal)" stroke-width="2"/>
+<text x="862.5" y="487" fill="var(--d-ink)" font-size="25" font-weight="600" text-anchor="middle">4</text>
+<path d="M 480 468 L 605 468" fill="none" stroke="var(--d-accent)" stroke-width="3" marker-end="url(#oit-page-comparison-arrow)"/>
+<path d="M 915 468 L 986 468" fill="none" stroke="var(--d-accent)" stroke-width="3" marker-end="url(#oit-page-comparison-arrow)"/>
+<text x="1008" y="475" fill="var(--d-muted)" font-size="20" font-weight="400" text-anchor="middle">∅</text>
+<text x="330" y="563" fill="var(--d-muted)" font-size="21" font-weight="400" text-anchor="middle">空槽</text>
+
+
+
+</svg>

@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN" data-palette="green" data-palette-pref="auto" data-background="sky" data-mode="day" data-mode-pref="day">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>透明度混合OIT介绍 · DoubleYe</title>
+  
+  <meta name="theme-color" content="#f0eee8">
+  <meta name="description" content="半透明渲染的顺序一直是个让人头疼的问题。常见做法是先绘制不透明物体，再将透明物体从远到近排序并进行 alpha 混合。这能处理许多常见场景，但相交物体在不同像素处的前后关系可能相反，物体级排序无法同时满足所有像素。 Depth peeling 在每一轮提取下一层透明片元，逐层处理遮挡关系。它需要重复绘制透明几何，层数越多，通常要执行的绘制和光栅化工作也越多。 顺序无关透明（OIT）提供了另一类思路">
+<meta property="og:type" content="article">
+<meta property="og:title" content="透明度混合OIT介绍">
+<meta property="og:url" content="https://frostyleaves.github.io/2026/11/17/rendering-digest-2026-11-17/index.html">
+<meta property="og:site_name" content="DoubleYe">
+<meta property="og:description" content="半透明渲染的顺序一直是个让人头疼的问题。常见做法是先绘制不透明物体，再将透明物体从远到近排序并进行 alpha 混合。这能处理许多常见场景，但相交物体在不同像素处的前后关系可能相反，物体级排序无法同时满足所有像素。 Depth peeling 在每一轮提取下一层透明片元，逐层处理遮挡关系。它需要重复绘制透明几何，层数越多，通常要执行的绘制和光栅化工作也越多。 顺序无关透明（OIT）提供了另一类思路">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-11-17T00:00:00.000Z">
+<meta property="article:modified_time" content="2026-11-17T08:14:00.281Z">
+<meta property="article:author" content="DoubleYe">
+<meta property="article:tag" content="GPU 数据结构">
+<meta property="article:tag" content="OIT">
+<meta property="article:tag" content="WebGPU">
+<meta property="article:tag" content="透明渲染">
+<meta name="twitter:card" content="summary">
+  
+    <link rel="icon" href="/images/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" sizes="192x192" href="/images/favicon-192x192.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+  
+  
+  
+<link rel="stylesheet" href="/css/fonts.css">
+
+  
+<link rel="stylesheet" href="/css/main.css">
+
+  <style id="palette-css">:root,:root[data-palette="blue"]{--accent:#009dff;--bg-1:#009dff;--bg-2:#1f4f77;--bg-3:#1c2628}
+.tone-blue{--tone:#009dff}
+:root[data-palette="green"]{--accent:#4bc292;--bg-1:#4bc292;--bg-2:#1f5e4a;--bg-3:#1c2628}
+.tone-green{--tone:#4bc292}
+:root[data-palette="gold"]{--accent:#f3b958;--bg-1:#f3b958;--bg-2:#7e5a1e;--bg-3:#1c2628}
+.tone-gold{--tone:#f3b958}
+:root[data-palette="red"]{--accent:#fe5f55;--bg-1:#fe5f55;--bg-2:#6e2a26;--bg-3:#1c2628}
+.tone-red{--tone:#fe5f55}</style>
+  <style id="language-css">:root[lang="zh-CN"] [data-ui-lang]:not([data-ui-lang="zh-CN"]){display:none}
+:root[lang="en"] [data-ui-lang]:not([data-ui-lang="en"]){display:none}</style>
+  <script>
+    (function () {
+      // Keep reader preferences when upgrading from the theme's former name.
+      function migrate(storage, names) {
+        names.forEach(function (name) {
+          var key = 'drift-' + name;
+          if (storage.getItem(key) !== null) return;
+          var previous = storage.getItem('doubleye-' + name);
+          if (previous !== null) storage.setItem(key, previous);
+        });
+      }
+      try { migrate(localStorage, ['palette', 'background', 'mode']); } catch (e) { /* storage may be blocked */ }
+      try { migrate(sessionStorage, ['bg-time']); } catch (e) { /* storage may be blocked */ }
+      var root = document.documentElement;
+      var languages = ["zh-CN","en"], language = null;
+      try { language = localStorage.getItem('drift-language'); } catch (e) { /* storage may be blocked */ }
+      root.lang = languages.indexOf(language) >= 0 ? language : "zh-CN";
+      var names = ["blue","green","gold","red"], auto = 'green', pref = null;
+      try { pref = localStorage.getItem('drift-palette'); } catch (e) { pref = null; }
+      if (names.indexOf(pref) < 0) pref = 'auto';
+      root.setAttribute('data-palette', pref === 'auto' ? auto : pref);
+      root.setAttribute('data-palette-pref', pref);
+      var scenes = ["sky","ocean"], scene = null, mode = null;
+      try { scene = localStorage.getItem('drift-background'); mode = localStorage.getItem('drift-mode'); } catch (e) { scene = null; mode = null; }
+      if (scenes.indexOf(scene) < 0) scene = 'sky';
+      if (mode !== 'auto' && mode !== 'day' && mode !== 'night') mode = 'day';
+      root.setAttribute('data-mode-pref', mode);
+      if (mode === 'auto') mode = window.matchMedia && !window.matchMedia('(prefers-color-scheme: dark)').matches ? 'day' : 'night';
+      root.setAttribute('data-background', scene);
+      root.setAttribute('data-mode', mode);
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute('content', mode === 'day' ? '#f0eee8' : '#191a1c');
+    })();
+    window.__THEME = {
+      palettes: {"blue":{"colors":["#009dff","#1f4f77","#1c2628"],"accent":"#009dff"},"green":{"colors":["#4bc292","#1f5e4a","#1c2628"],"accent":"#4bc292"},"gold":{"colors":["#f3b958","#7e5a1e","#1c2628"],"accent":"#f3b958"},"red":{"colors":["#fe5f55","#6e2a26","#1c2628"],"accent":"#fe5f55"}},
+      auto: 'green',
+      labels: {"auto":"自动","toggle":"切换配色","copy":"复制","copied":"已复制","sceneToggle":"切换背景","scenes":{"sky":"天空","ocean":"海洋"},"modeToggle":"切换日夜","modes":{"auto":"自动","day":"日间","night":"夜间"},"blue":"湖蓝","green":"青翠","gold":"琥珀","red":"绯红"},
+      background: {"enable":true,"style":"sky","styles":["sky","ocean"],"mode":"day","speed":1,"fps":30,"pixel_filter":740},
+      juice: {"tilt":true,"wobble":true,"foil":"pixel-glass","text":"titles"},
+      i18n: {"languages":["zh-CN","en"],"default":"zh-CN","dictionaries":{"zh-CN":{"nav.home":"首页","nav.posts":"文章","nav.categories":"分类","nav.tags":"标签","nav.archives":"归档","language.toggle":"切换语言","language.name":"中文","language.short":"中","pagination":"翻页","hero.posts":"篇文章","hero.categories":"个分类","hero.tags":"个标签","post.navigation":"文章导航","post.toc":"目录","post.reading_progress":"阅读进度","post.reading_hint":"拖动刻度跳转 · 点击章节定位","post.updated":"更新于","post.words":"字","post.minutes":"分钟","post.prev":"上一篇","post.next":"下一篇","post.license_prefix":"本文采用","post.license_suffix":"许可","post.copy":"复制","post.copied":"已复制","post.scroll_down":"向下滚动","post.tags":"标签","archive.title":"归档","archive.total_prefix":"共","archive.total_suffix":"篇","category.title":"分类","tag.title":"标签","footer.powered":"由 Hexo 驱动","palette.toggle":"切换配色","palette.auto":"自动","palette.blue":"湖蓝","palette.green":"青翠","palette.gold":"琥珀","palette.red":"绯红","background.toggle":"切换背景","background.sky":"天空","background.ocean":"海洋","mode.toggle":"切换日夜","mode.auto":"自动","mode.day":"日间","mode.night":"夜间","error404.title":"页面不存在","error404.description":"你访问的页面可能已被移动或删除。","error404.home":"返回首页","skip":"跳到正文"},"en":{"nav.home":"Home","nav.posts":"Posts","nav.categories":"Categories","nav.tags":"Tags","nav.archives":"Archives","language.toggle":"Language","language.name":"English","language.short":"EN","pagination":"Pagination","hero.posts":"posts","hero.categories":"categories","hero.tags":"tags","post.navigation":"Post navigation","post.toc":"Contents","post.reading_progress":"Reading progress","post.reading_hint":"Drag the ruler · Click a chapter","post.updated":"Updated","post.words":"words","post.minutes":"min","post.prev":"Newer","post.next":"Older","post.license_prefix":"Licensed under","post.license_suffix":"","post.copy":"Copy","post.copied":"Copied","post.scroll_down":"Scroll down","post.tags":"Tags","archive.title":"Archives","archive.total_prefix":"","archive.total_suffix":"posts","category.title":"Categories","tag.title":"Tags","footer.powered":"Powered by Hexo","palette.toggle":"Palette","palette.auto":"auto","palette.blue":"Lake","palette.green":"Jade","palette.gold":"Amber","palette.red":"Crimson","background.toggle":"Backdrop","background.sky":"Sky","background.ocean":"Ocean","mode.toggle":"Day / night","mode.auto":"Auto","mode.day":"Day","mode.night":"Night","error404.title":"Page not found","error404.description":"The page you are looking for may have been moved or removed.","error404.home":"Back to home","skip":"Skip to content"}}}
+    };
+  </script>
+<meta name="generator" content="Hexo 8.1.1"><style id="theme-svg-layout">
+.theme-svg-figure{margin:1.7rem 0;max-width:100%;line-height:0}
+.theme-svg-figure .theme-svg-link,.theme-svg-figure .theme-svg-panel{display:block;background-image:none!important;text-decoration:none!important;border:0;border-radius:10px;overflow:hidden}
+.theme-svg-figure .theme-diagram{display:block;width:100%;height:auto;max-width:100%}
+.theme-svg-figure .theme-diagram,.theme-svg-figure .theme-diagram *{transition:fill .3s ease,stroke .3s ease}
+.theme-svg-figure .theme-svg-link:focus-visible{outline:2px solid currentColor;outline-offset:4px}
+@media (prefers-reduced-motion:reduce){.theme-svg-figure .theme-diagram,.theme-svg-figure .theme-diagram *{transition:none}}
+@media print{.theme-svg-figure{break-inside:avoid}}
+</style></head>
+
+
+<body class="juice-tilt juice-wobble juice-foil text-titles" data-card-effect="pixel-glass">
+  <a class="skip-link" href="#main"><span data-ui-lang="zh-CN">跳到正文</span><span data-ui-lang="en">Skip to content</span></a>
+  <div class="backdrop" id="backdrop" aria-hidden="true"><canvas class="backdrop__canvas" id="backdrop-canvas"></canvas><canvas class="backdrop__snapshot" id="backdrop-snapshot"></canvas></div>
+  
+<header class="site-header" id="site-header">
+  <div class="site-header__inner">
+    <a class="site-brand px" href="/" aria-label="DoubleYe"><span class="w"><span class="ch" style="--i:0" aria-hidden="true">D</span><span class="ch" style="--i:1" aria-hidden="true">o</span><span class="ch" style="--i:2" aria-hidden="true">u</span><span class="ch" style="--i:3" aria-hidden="true">b</span><span class="ch" style="--i:4" aria-hidden="true">l</span><span class="ch" style="--i:5" aria-hidden="true">e</span><span class="ch" style="--i:6" aria-hidden="true">Y</span><span class="ch" style="--i:7" aria-hidden="true">e</span></span></a>
+    <nav class="site-nav" data-i18n-aria-label="nav.home" aria-label="首页">
+      
+        <a class="btn btn--nav px" href="/archives/"><span data-ui-lang="zh-CN">文章</span><span data-ui-lang="en">Posts</span></a>
+      
+        <a class="btn btn--nav px" href="/categories/"><span data-ui-lang="zh-CN">分类</span><span data-ui-lang="en">Categories</span></a>
+      
+        <a class="btn btn--nav px" href="/tags/"><span data-ui-lang="zh-CN">标签</span><span data-ui-lang="en">Tags</span></a>
+      
+        <a class="btn btn--nav px" href="/"><span data-ui-lang="zh-CN">首页</span><span data-ui-lang="en">Home</span></a>
+      
+      <div class="site-controls">
+      <button class="palette-toggle" id="palette-toggle" type="button" aria-label="切换配色: 自动 · 青翠" title="切换配色: 自动 · 青翠">
+        <span class="palette-toggle__disc" aria-hidden="true"></span>
+        <span class="palette-toggle__label px" id="palette-label"><span data-ui-lang="zh-CN">自动</span><span data-ui-lang="en">auto</span></span>
+      </button>
+      
+      <button class="scene-toggle" id="background-toggle" type="button" aria-label="切换背景" title="切换背景: 天空">
+        <span class="scene-toggle__icon" aria-hidden="true">
+          <svg class="scene-icon scene-icon--sky" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="2" y="0" width="1" height="5"/><rect x="0" y="2" width="5" height="1"/><rect x="1" y="1" width="1" height="1"/><rect x="3" y="1" width="1" height="1"/><rect x="1" y="3" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="6" y="5" width="4" height="1"/><rect x="5" y="6" width="6" height="1"/><rect x="4" y="7" width="8" height="1"/><rect x="3" y="8" width="9" height="2"/></svg>
+          <svg class="scene-icon scene-icon--ocean" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="1" y="2" width="3" height="1"/><rect x="6" y="2" width="3" height="1"/><rect x="0" y="3" width="1" height="1"/><rect x="4" y="3" width="2" height="1"/><rect x="9" y="3" width="2" height="1"/><rect x="1" y="6" width="3" height="1"/><rect x="6" y="6" width="3" height="1"/><rect x="0" y="7" width="1" height="1"/><rect x="4" y="7" width="2" height="1"/><rect x="9" y="7" width="2" height="1"/><rect x="1" y="10" width="3" height="1"/><rect x="6" y="10" width="3" height="1"/><rect x="0" y="11" width="1" height="1"/><rect x="4" y="11" width="2" height="1"/><rect x="9" y="11" width="2" height="1"/></svg>
+        </span>
+        <span class="scene-toggle__label px" id="background-label"><span data-ui-lang="zh-CN">天空</span><span data-ui-lang="en">Sky</span></span>
+      </button>
+      
+      <button class="scene-toggle mode-toggle" id="mode-toggle" type="button" aria-label="切换日夜" title="切换日夜: 日间">
+        <span class="scene-toggle__icon" aria-hidden="true">
+          <svg class="mode-icon mode-icon--auto" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="1" y="1" width="10" height="1"/><rect x="0" y="2" width="1" height="5"/><rect x="11" y="2" width="1" height="5"/><rect x="1" y="7" width="10" height="1"/><rect x="5" y="8" width="2" height="2"/><rect x="3" y="10" width="6" height="1"/></svg>
+          <svg class="mode-icon mode-icon--night" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="4" y="1" width="4" height="1"/><rect x="3" y="2" width="2" height="1"/><rect x="2" y="3" width="2" height="2"/><rect x="2" y="5" width="2" height="2"/><rect x="2" y="7" width="2" height="2"/><rect x="3" y="9" width="2" height="1"/><rect x="4" y="10" width="4" height="1"/><rect x="8" y="9" width="2" height="1"/><rect x="8" y="2" width="2" height="1"/></svg>
+          <svg class="mode-icon mode-icon--day" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="4" y="4" width="4" height="4"/><rect x="5" y="0" width="2" height="2"/><rect x="5" y="10" width="2" height="2"/><rect x="0" y="5" width="2" height="2"/><rect x="10" y="5" width="2" height="2"/><rect x="1" y="1" width="2" height="1"/><rect x="1" y="2" width="1" height="1"/><rect x="9" y="1" width="2" height="1"/><rect x="10" y="2" width="1" height="1"/><rect x="1" y="9" width="1" height="1"/><rect x="1" y="10" width="2" height="1"/><rect x="10" y="9" width="1" height="1"/><rect x="9" y="10" width="2" height="1"/></svg>
+        </span>
+        <span class="scene-toggle__label px" id="mode-label"><span data-ui-lang="zh-CN">日间</span><span data-ui-lang="en">Day</span></span>
+      </button>
+      
+      <button class="language-toggle px" id="language-toggle" type="button" title="切换语言" aria-label="切换语言"><span data-ui-lang="zh-CN">中</span><span data-ui-lang="en">EN</span></button>
+      
+      </div>
+    </nav>
+  </div>
+</header>
+
+  <main id="main" class="site-main">
+    
+<article class="post-layout has-toc" itemscope itemtype="https://schema.org/BlogPosting">
+  
+  <div class="reading-mobile" hidden role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-i18n-aria-label="post.reading_progress" aria-label="阅读进度"><span></span></div>
+  
+  <div class="post container">
+    <header class="post-header">
+      <h1 class="post-title px title-anim" itemprop="headline" aria-label="透明度混合OIT介绍"><span class="ch" style="--i:0" aria-hidden="true">透</span><span class="ch" style="--i:1" aria-hidden="true">明</span><span class="ch" style="--i:2" aria-hidden="true">度</span><span class="ch" style="--i:3" aria-hidden="true">混</span><span class="ch" style="--i:4" aria-hidden="true">合</span><span class="w"><span class="ch" style="--i:5" aria-hidden="true">O</span><span class="ch" style="--i:6" aria-hidden="true">I</span><span class="ch" style="--i:7" aria-hidden="true">T</span></span><span class="ch" style="--i:8" aria-hidden="true">介</span><span class="ch" style="--i:9" aria-hidden="true">绍</span></h1>
+      
+<div class="post-meta">
+  <time class="badge badge--date px" datetime="2026-11-17T00:00:00.000Z">2026-11-17</time>
+  
+    <a class="seal tone-green px" href="/categories/%E6%AF%8F%E6%97%A5%E6%8E%A8%E8%8D%90/"><span class="seal__dot" aria-hidden="true"></span>每日推荐</a>
+  
+  <span class="badge badge--blue px post-meta__words">2,749 <span data-ui-lang="zh-CN">字</span><span data-ui-lang="en">words</span></span>
+  <span class="badge badge--red px">7 <span data-ui-lang="zh-CN">分钟</span><span data-ui-lang="en">min</span></span>
+  
+</div>
+
+    </header>
+
+    
+    <details class="toc-mobile panel">
+      <summary class="px"><span data-ui-lang="zh-CN">目录</span><span data-ui-lang="en">Contents</span><span class="toc-mobile__percent" data-reading-percent aria-hidden="true"></span></summary>
+      
+
+<nav class="toc panel" data-i18n-aria-label="post.toc" aria-label="目录">
+  <div class="toc__title px"><span data-ui-lang="zh-CN">目录</span><span data-ui-lang="en">Contents</span></div>
+  <ol class="toc-list"><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%85%88%E6%8A%8A%E7%89%87%E5%85%83%E6%94%B6%E9%9B%86%E5%88%B0%E5%83%8F%E7%B4%A0"><span class="toc-list-text">先把片元收集到像素</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%9F%BA%E4%BA%8E%E5%83%8F%E7%B4%A0%E7%9A%84%E9%93%BE%E8%A1%A8"><span class="toc-list-text">基于像素的链表</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E6%8C%89%E9%A1%B5%E5%88%86%E9%85%8D%E5%AD%98%E5%82%A8"><span class="toc-list-text">按页分配存储</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%88%86%E9%A1%B5%E7%9C%81%E4%B8%8B%E4%BA%86%E5%93%AA%E4%BA%9B%E5%BC%80%E9%94%80"><span class="toc-list-text">分页省下了哪些开销</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%B8%B8%E8%A7%84%E6%8E%92%E5%BA%8F%E4%B8%8E%E9%93%BE%E8%A1%A8%E5%90%84%E6%9C%89%E4%BB%A3%E4%BB%B7"><span class="toc-list-text">常规排序与链表各有代价</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#VTK-%E7%9A%84%E5%AE%9E%E9%99%85%E5%AE%9E%E7%8E%B0"><span class="toc-list-text">VTK 的实际实现</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%AD%98%E4%B8%8D%E4%B8%8B%E5%85%A8%E9%83%A8%E7%89%87%E5%85%83%E6%97%B6"><span class="toc-list-text">存不下全部片元时</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="toc-list-text">参考资料</span></a></li></ol>
+</nav>
+
+
+    </details>
+    
+
+    <div class="post-body panel">
+      <div class="post-content" id="drift-post-content" itemprop="articleBody" lang="zh-CN">
+        <p>半透明渲染的顺序一直是个让人头疼的问题。常见做法是先绘制不透明物体，再将透明物体从远到近排序并进行 alpha 混合。这能处理许多常见场景，但相交物体在不同像素处的前后关系可能相反，物体级排序无法同时满足所有像素。</p>
+<p>Depth peeling 在每一轮提取下一层透明片元，逐层处理遮挡关系。它需要重复绘制透明几何，层数越多，通常要执行的绘制和光栅化工作也越多。</p>
+<p>顺序无关透明（OIT）提供了另一类思路：允许透明片元以任意顺序到达，再通过额外的数据结构或近似计算得到结果。下面重点介绍两种逐像素链表的组织方式，然后看看有限存储预算下的其他选择。</p>
+<span id="more"></span>
+
+<h2 id="先把片元收集到像素"><a href="#先把片元收集到像素" class="headerlink" title="先把片元收集到像素"></a>先把片元收集到像素</h2><p>透明物体经过光栅化后，同一个屏幕像素可能收到来自多个表面的片元。这些片元的到达顺序取决于绘制和 GPU 执行过程，不保证符合深度顺序。</p>
+<p>逐像素链表把同一像素的片元收集起来，留待后续处理。收集阶段通常借助不透明深度剔除被遮挡的透明片元；收集结束后，resolve 阶段遍历每个像素的列表，按深度排序，再将片元从远到近混合到不透明背景上。</p>
+<p><a target="_blank" rel="noopener" href="https://www.slideshare.net/slideshow/oit-and-indirect-illumination-using-dx11-linked-lists/3443500">AMD 的 DX11 演讲</a>展示了这种结构的构建和遍历过程。</p>
+<h2 id="基于像素的链表"><a href="#基于像素的链表" class="headerlink" title="基于像素的链表"></a>基于像素的链表</h2><p>屏幕大小的头索引缓冲区给每个像素保存一个入口。所有像素共用一个节点池，节点里记录片元颜色、深度和下一个节点的索引。</p>
+<p>AMD 演讲中的一种具体布局如下。屏幕大小的 <code>Start Offset Buffer</code> 每像素保存一个 <strong>32 位无符号节点索引</strong>；空链用 <code>0xFFFFFFFF</code> 表示。全局节点池中的每个元素包含三个 32 位字段，共 <strong>96 位，也就是 12 字节</strong>：</p>
+<ul>
+<li><code>uPixelColor</code>：32 位打包颜色。</li>
+<li><code>uDepth</code>：32 位深度数据。</li>
+<li><code>uNext</code>：32 位下一节点索引。</li>
+</ul>
+<figure class="theme-svg-figure theme-svg-figure--asset"><a class="theme-svg-link" href="&#x2F;2026&#x2F;11&#x2F;17&#x2F;rendering-digest-2026-11-17&#x2F;oit-node-bits.svg" target="_blank" rel="noopener" aria-label="AMD 示例中像素头索引与片元节点的字段布局"><svg style="--diagram-background:var(--color-background, #222426);--diagram-text:var(--color-text, #e6e4e0);--diagram-accent:var(--color-accent-1, #f3b958);--diagram-teal:var(--color-diagram-teal, #4bc292);--diagram-blue:var(--color-diagram-blue, #009dff);--diagram-purple:var(--color-diagram-purple, #8867a5);--diagram-orange:var(--color-diagram-orange, #f3b958)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 452" class="theme-diagram" data-theme-svg="1" role="img" aria-labelledby="diagram-3bdbb8599a-0-oit-node-bits-title diagram-3bdbb8599a-0-oit-node-bits-desc">
+<title id="diagram-3bdbb8599a-0-oit-node-bits-title">逐像素链表的数据布局</title>
+<desc id="diagram-3bdbb8599a-0-oit-node-bits-desc">每个像素的 HeadBuffer 元素包含一个 32 位无符号头索引。NodeBuffer 的每个节点依次包含 Color、Depth、Next 三个 32 位无符号字段，合计 96 位，即 12 字节。下方数字为节点内的位偏移区间。</desc>
+<style>
+.theme-diagram {
+  --d-bg: var(--diagram-background, #ffffff);
+  --d-ink: var(--diagram-text, #383838);
+  --d-accent: var(--diagram-accent, #2bbc8a);
+  --d-muted: color-mix(in srgb, var(--d-ink) 68%, var(--d-bg));
+  --d-border: color-mix(in srgb, var(--d-ink) 19%, var(--d-bg));
+  --d-surface: color-mix(in srgb, var(--d-ink) 3%, var(--d-bg));
+  --d-shadow: color-mix(in srgb, #000000 35%, var(--d-bg));
+  --d-teal: var(--diagram-teal, color-mix(in srgb, var(--d-accent) 76%, var(--d-ink)));
+  --d-blue: var(--diagram-blue, color-mix(in srgb, var(--d-accent) 28%, #6c91bc));
+  --d-purple: var(--diagram-purple, color-mix(in srgb, var(--d-accent) 15%, #a18ab9));
+  --d-orange: var(--diagram-orange, color-mix(in srgb, var(--d-accent) 10%, #d3a462));
+  font-family: var(--diagram-font, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif);
+}
+.theme-diagram text { font-family: inherit; }
+</style>
+<text x="48" y="55" font-size="27" text-anchor="start" fill="var(--d-ink)">HeadBuffer[x, y]</text><text x="1032" y="55" font-size="24" text-anchor="end" fill="var(--d-muted)">32 bit · 4 B</text><rect x="48.0" y="75" width="984.0" height="100" rx="3" fill="var(--d-teal)" fill-opacity="0.14" stroke="var(--d-teal)" stroke-width="2"/><text x="540.0" y="114" font-size="29" text-anchor="middle" fill="var(--d-ink)">Head</text><text x="540.0" y="151" font-size="23" text-anchor="middle" fill="var(--d-muted)">uint32 · 32 bit</text><text x="48" y="260" font-size="27" text-anchor="start" fill="var(--d-ink)">NodeBuffer[i]</text><text x="1032" y="260" font-size="24" text-anchor="end" fill="var(--d-muted)">96 bit · 12 B</text><rect x="48.0" y="280" width="328.0" height="100" rx="3" fill="var(--d-blue)" fill-opacity="0.14" stroke="var(--d-blue)" stroke-width="2"/><text x="212.0" y="319" font-size="29" text-anchor="middle" fill="var(--d-ink)">Color</text><text x="212.0" y="356" font-size="23" text-anchor="middle" fill="var(--d-muted)">uint32 · 32 bit</text><rect x="376.0" y="280" width="328.0" height="100" rx="3" fill="var(--d-purple)" fill-opacity="0.14" stroke="var(--d-purple)" stroke-width="2"/><text x="540.0" y="319" font-size="29" text-anchor="middle" fill="var(--d-ink)">Depth</text><text x="540.0" y="356" font-size="23" text-anchor="middle" fill="var(--d-muted)">uint32 · 32 bit</text><rect x="704.0" y="280" width="328.0" height="100" rx="3" fill="var(--d-orange)" fill-opacity="0.14" stroke="var(--d-orange)" stroke-width="2"/><text x="868.0" y="319" font-size="29" text-anchor="middle" fill="var(--d-ink)">Next</text><text x="868.0" y="356" font-size="23" text-anchor="middle" fill="var(--d-muted)">uint32 · 32 bit</text><text x="212" y="416" font-size="24" text-anchor="middle" fill="var(--d-muted)">0–31</text><text x="540" y="416" font-size="24" text-anchor="middle" fill="var(--d-muted)">32–63</text><text x="868" y="416" font-size="24" text-anchor="middle" fill="var(--d-muted)">64–95</text>
+</svg></a></figure>
+
+<p>位号表示节点结构中的相对偏移。上述 96 位是<strong>每个节点</strong>的大小，不是每个屏幕像素的总开销；同一像素可能对应多个节点。全局节点分配计数器独立存放，也没有计入每像素的 32 位头索引。<a target="_blank" rel="noopener" href="https://www.slideshare.net/slideshow/oit-and-indirect-illumination-using-dx11-linked-lists/3443500">AMD 演讲</a>将 32 位颜色标作打包数据，但未在这个基础结构中明确每个颜色通道的位宽，因此这里不将它指定为 RGBA8。</p>
+<p>这只是一个实现选择。本文后面提到的 VTK WebGPU 实现还包含拾取用的 ID 字段，节点总计 <strong>224 位，即 28 字节</strong>。其 <code>color</code> 为 32 位打包 RGBA，<code>depth</code> 为 32 位浮点数，另外有四个各 32 位的 ID 和一个 32 位 next。具体见 <a target="_blank" rel="noopener" href="https://github.com/Kitware/VTK/blob/master/Rendering/WebGPU/vtkWebGPUDeepFramebuffer.h">VTK 节点声明</a>和<a target="_blank" rel="noopener" href="https://github.com/Kitware/VTK/blob/master/Rendering/WebGPU/vtkWebGPUPolyDataMapper.cxx">写入代码</a>。这些 ID 服务于 VTK 的数据标识需求，并非链表结构的必需字段。</p>
+<figure class="theme-svg-figure theme-svg-figure--asset"><a class="theme-svg-link" href="&#x2F;2026&#x2F;11&#x2F;17&#x2F;rendering-digest-2026-11-17&#x2F;oit-fragments.svg" target="_blank" rel="noopener" aria-label="逐片元节点链表的组织方式"><svg style="--diagram-background:var(--color-background, #222426);--diagram-text:var(--color-text, #e6e4e0);--diagram-accent:var(--color-accent-1, #f3b958);--diagram-teal:var(--color-diagram-teal, #4bc292);--diagram-blue:var(--color-diagram-blue, #009dff);--diagram-purple:var(--color-diagram-purple, #8867a5);--diagram-orange:var(--color-diagram-orange, #f3b958)" xmlns="http://www.w3.org/2000/svg" viewBox="0 125 1080 575" class="theme-diagram" data-theme-svg="1" role="img" aria-labelledby="diagram-67571211ec-1-oit-fragments-title diagram-67571211ec-1-oit-fragments-desc"><title id="diagram-67571211ec-1-oit-fragments-title">逐片元节点链表</title><desc id="diagram-67571211ec-1-oit-fragments-desc">五个透明表面覆盖同一个像素。收集阶段保留五个不同深度的片元。像素头指针指向共享池中的片元节点，每个节点存颜色、深度和下一节点指针。链表未按深度排列。</desc><style>
+.theme-diagram {
+  --d-bg: var(--diagram-background, #ffffff);
+  --d-ink: var(--diagram-text, #383838);
+  --d-accent: var(--diagram-accent, #2bbc8a);
+  --d-muted: color-mix(in srgb, var(--d-ink) 68%, var(--d-bg));
+  --d-border: color-mix(in srgb, var(--d-ink) 19%, var(--d-bg));
+  --d-surface: color-mix(in srgb, var(--d-ink) 3%, var(--d-bg));
+  --d-shadow: color-mix(in srgb, #000000 35%, var(--d-bg));
+  --d-teal: var(--diagram-teal, color-mix(in srgb, var(--d-accent) 76%, var(--d-ink)));
+  --d-blue: var(--diagram-blue, color-mix(in srgb, var(--d-accent) 28%, #6c91bc));
+  --d-purple: var(--diagram-purple, color-mix(in srgb, var(--d-accent) 15%, #a18ab9));
+  --d-orange: var(--diagram-orange, color-mix(in srgb, var(--d-accent) 10%, #d3a462));
+  font-family: var(--diagram-font, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif);
+}
+.theme-diagram text { font-family: inherit; }
+</style><defs><marker id="diagram-67571211ec-1-oit-fragments-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10Z" fill="context-stroke"/></marker></defs>
+<rect x="0" y="0" width="1080" height="830" rx="0" fill="var(--d-bg)" stroke="var(--d-bg)" stroke-width="1.5"/>
+
+
+<path d="M45 325 L75 150 L130 310Z" fill="var(--d-blue)" fill-opacity="0.2" stroke="var(--d-blue)" stroke-width="2"/>
+<path d="M130 325 L160 159 L215 310Z" fill="var(--d-orange)" fill-opacity="0.2" stroke="var(--d-orange)" stroke-width="2"/>
+<path d="M215 325 L245 168 L300 310Z" fill="var(--d-purple)" fill-opacity="0.2" stroke="var(--d-purple)" stroke-width="2"/>
+<path d="M300 325 L330 177 L385 310Z" fill="var(--d-teal)" fill-opacity="0.2" stroke="var(--d-teal)" stroke-width="2"/>
+<path d="M385 325 L415 186 L470 310Z" fill="var(--d-blue)" fill-opacity="0.2" stroke="var(--d-blue)" stroke-width="2"/>
+<path d="M48 265 L606 265" fill="none" stroke="var(--d-muted)" stroke-width="2" marker-end="url(#diagram-67571211ec-1-oit-fragments-arrow)" stroke-dasharray="6 5"/>
+<circle cx="80" cy="265" r="9" fill="var(--d-blue)" stroke="var(--d-bg)" stroke-width="2"/>
+
+<circle cx="165" cy="265" r="9" fill="var(--d-orange)" stroke="var(--d-bg)" stroke-width="2"/>
+
+<circle cx="250" cy="265" r="9" fill="var(--d-purple)" stroke="var(--d-bg)" stroke-width="2"/>
+
+<circle cx="335" cy="265" r="9" fill="var(--d-teal)" stroke="var(--d-bg)" stroke-width="2"/>
+
+<circle cx="420" cy="265" r="9" fill="var(--d-blue)" stroke="var(--d-bg)" stroke-width="2"/>
+
+
+<text x="414" y="222" fill="var(--d-ink)" font-size="20" font-weight="normal" text-anchor="start">片元</text>
+<rect x="610" y="205" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="650" y="205" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="690" y="205" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="730" y="205" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="610" y="245" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="650" y="245" width="40" height="40" rx="0" fill="var(--d-accent)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="690" y="245" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="730" y="245" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="610" y="285" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="650" y="285" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="690" y="285" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="730" y="285" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="610" y="325" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="650" y="325" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="690" y="325" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="730" y="325" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<text x="630" y="188" fill="var(--d-ink)" font-size="22" font-weight="normal" text-anchor="start">像素网格</text>
+<text x="670" y="272" fill="var(--d-ink)" font-size="24" font-weight="600" text-anchor="middle">A</text>
+<path d="M770 265 L814 265" fill="none" stroke="var(--d-muted)" stroke-width="2" marker-end="url(#diagram-67571211ec-1-oit-fragments-arrow)"/>
+<rect x="832" y="218" width="212" height="100" rx="8" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<text x="850" y="249" fill="var(--d-ink)" font-size="22" font-weight="600" text-anchor="start">像素 A</text>
+<text x="850" y="285" fill="var(--d-ink)" font-size="21" font-weight="normal" text-anchor="start">head</text>
+<path d="M937 320 L937 433 L210 433 L210 480 L112 480 L112 496" fill="none" stroke="var(--d-accent)" stroke-width="2" marker-end="url(#diagram-67571211ec-1-oit-fragments-arrow)"/>
+<text x="36" y="470" fill="var(--d-ink)" font-size="24" font-weight="600" text-anchor="start">共享片元池</text>
+<rect x="36" y="490" width="1008" height="196" rx="8" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<text x="133" y="526" fill="var(--d-ink)" font-size="20" font-weight="600" text-anchor="middle">节点 7</text>
+<rect x="56" y="541" width="150" height="62" rx="8" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="66" y="553" width="24" height="38" rx="3" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.5"/>
+<text x="100" y="565" fill="var(--d-muted)" font-size="17" font-weight="normal" text-anchor="start">颜色 / α</text>
+<text x="100" y="589" fill="var(--d-ink)" font-size="18" font-weight="normal" text-anchor="start">深度</text>
+<rect x="56" y="603" width="150" height="40" rx="8" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<text x="72" y="630" fill="var(--d-muted)" font-size="18" font-weight="normal" text-anchor="start">next</text>
+<circle cx="183" cy="623" r="4" fill="var(--d-ink)" stroke="var(--d-bg)" stroke-width="2"/>
+<path d="M190 623 L230 623 L230 572 L250 572" fill="none" stroke="var(--d-accent)" stroke-width="2" marker-end="url(#diagram-67571211ec-1-oit-fragments-arrow)"/>
+<text x="327" y="526" fill="var(--d-ink)" font-size="20" font-weight="600" text-anchor="middle">节点 2</text>
+<rect x="250" y="541" width="150" height="62" rx="8" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="260" y="553" width="24" height="38" rx="3" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.5"/>
+<text x="294" y="565" fill="var(--d-muted)" font-size="17" font-weight="normal" text-anchor="start">颜色 / α</text>
+<text x="294" y="589" fill="var(--d-ink)" font-size="18" font-weight="normal" text-anchor="start">深度</text>
+<rect x="250" y="603" width="150" height="40" rx="8" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<text x="266" y="630" fill="var(--d-muted)" font-size="18" font-weight="normal" text-anchor="start">next</text>
+<circle cx="377" cy="623" r="4" fill="var(--d-ink)" stroke="var(--d-bg)" stroke-width="2"/>
+<path d="M384 623 L424 623 L424 572 L444 572" fill="none" stroke="var(--d-accent)" stroke-width="2" marker-end="url(#diagram-67571211ec-1-oit-fragments-arrow)"/>
+<text x="521" y="526" fill="var(--d-ink)" font-size="20" font-weight="600" text-anchor="middle">节点 9</text>
+<rect x="444" y="541" width="150" height="62" rx="8" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="454" y="553" width="24" height="38" rx="3" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.5"/>
+<text x="488" y="565" fill="var(--d-muted)" font-size="17" font-weight="normal" text-anchor="start">颜色 / α</text>
+<text x="488" y="589" fill="var(--d-ink)" font-size="18" font-weight="normal" text-anchor="start">深度</text>
+<rect x="444" y="603" width="150" height="40" rx="8" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<text x="460" y="630" fill="var(--d-muted)" font-size="18" font-weight="normal" text-anchor="start">next</text>
+<circle cx="571" cy="623" r="4" fill="var(--d-ink)" stroke="var(--d-bg)" stroke-width="2"/>
+<path d="M578 623 L618 623 L618 572 L638 572" fill="none" stroke="var(--d-accent)" stroke-width="2" marker-end="url(#diagram-67571211ec-1-oit-fragments-arrow)"/>
+<text x="715" y="526" fill="var(--d-ink)" font-size="20" font-weight="600" text-anchor="middle">节点 0</text>
+<rect x="638" y="541" width="150" height="62" rx="8" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="648" y="553" width="24" height="38" rx="3" fill="var(--d-orange)" stroke="var(--d-orange)" stroke-width="1.5"/>
+<text x="682" y="565" fill="var(--d-muted)" font-size="17" font-weight="normal" text-anchor="start">颜色 / α</text>
+<text x="682" y="589" fill="var(--d-ink)" font-size="18" font-weight="normal" text-anchor="start">深度</text>
+<rect x="638" y="603" width="150" height="40" rx="8" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<text x="654" y="630" fill="var(--d-muted)" font-size="18" font-weight="normal" text-anchor="start">next</text>
+<circle cx="765" cy="623" r="4" fill="var(--d-ink)" stroke="var(--d-bg)" stroke-width="2"/>
+<path d="M772 623 L812 623 L812 572 L832 572" fill="none" stroke="var(--d-accent)" stroke-width="2" marker-end="url(#diagram-67571211ec-1-oit-fragments-arrow)"/>
+<text x="909" y="526" fill="var(--d-ink)" font-size="20" font-weight="600" text-anchor="middle">节点 4</text>
+<rect x="832" y="541" width="150" height="62" rx="8" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="842" y="553" width="24" height="38" rx="3" fill="var(--d-purple)" stroke="var(--d-purple)" stroke-width="1.5"/>
+<text x="876" y="565" fill="var(--d-muted)" font-size="17" font-weight="normal" text-anchor="start">颜色 / α</text>
+<text x="876" y="589" fill="var(--d-ink)" font-size="18" font-weight="normal" text-anchor="start">深度</text>
+<rect x="832" y="603" width="150" height="40" rx="8" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<text x="848" y="630" fill="var(--d-muted)" font-size="18" font-weight="normal" text-anchor="start">next</text>
+<circle cx="959" cy="623" r="4" fill="var(--d-ink)" stroke="var(--d-bg)" stroke-width="2"/>
+<path d="M966 623 L996 623" fill="none" stroke="var(--d-accent)" stroke-width="2" marker-end="url(#diagram-67571211ec-1-oit-fragments-arrow)"/>
+<text x="1000" y="630" fill="var(--d-ink)" font-size="22" font-weight="normal" text-anchor="start">∅</text>
+
+
+<path d="M132 728 L194 728" fill="none" stroke="var(--d-accent)" stroke-width="2" marker-end="url(#diagram-67571211ec-1-oit-fragments-arrow)"/>
+
+
+</svg></a></figure>
+
+<p>图中高亮像素收到多个不同深度的片元。它的 head 指向节点池中的一个节点；沿着各节点的 next，就能找到属于该像素的其余片元。同一像素的节点在逻辑上连成链表，在共享池中不要求连续存放。图中箭头表示链接关系，节点索引仅为示意。</p>
+<p>构建过程可以概括为：</p>
+<ol>
+<li>片元通过原子计数器从共享池领取一个节点位置。</li>
+<li>原子交换该像素的 head，将它改为新节点索引，同时取得旧 head。</li>
+<li>将旧 head 写入新节点的 next，并写入片元数据。</li>
+</ol>
+<p>链表头插顺序由片元到达和并发执行决定。Resolve 阶段仍需遍历并按深度排序。AMD 示例将片元拷贝到局部数组排序，数组容量也因此限制了每像素能够处理的片元数；具体超限策略取决于实现。</p>
+<h2 id="按页分配存储"><a href="#按页分配存储" class="headerlink" title="按页分配存储"></a>按页分配存储</h2><p><a target="_blank" rel="noopener" href="https://www.icare3d.org/codes-and-projects/codes/opengl-4-0-abuffer-v2-0-linked-lists-of-fragment-pages.html">Cyril Crassin 的 A-buffer 实现</a>按页分配存储。每页容纳一小组片元，页与页之间通过链接相连；作者给出的页容量示例为 4～6 个片元。</p>
+<p>下面以作者 2010 年 <a target="_blank" rel="noopener" href="https://www.icare3d.org/files/ABufferGL4/ABufferGL4LinkedList.zip">Demo 源码</a>中的 <code>ABUFFER_PAGE_SIZE = 4</code> 配置为例。每个像素使用三份独立的 32 位资源：</p>
+<ul>
+<li><code>pageIdx</code>：当前页在片元池中的起始槽位偏移。</li>
+<li><code>fragCount</code>：该像素已收集的片元数。</li>
+<li><code>semaphore</code>：构建链表时用于并发协调的锁。</li>
+</ul>
+<p>三者合计 <strong>96 位，即每像素 12 字节</strong>；它们位于独立资源中，并非打包成一个 96 位结构。</p>
+<figure class="theme-svg-figure theme-svg-figure--asset"><a class="theme-svg-link" href="&#x2F;2026&#x2F;11&#x2F;17&#x2F;rendering-digest-2026-11-17&#x2F;oit-page-bits.svg" target="_blank" rel="noopener" aria-label="Crassin Demo 的逐像素资源与每页字段布局"><svg style="--diagram-background:var(--color-background, #222426);--diagram-text:var(--color-text, #e6e4e0);--diagram-accent:var(--color-accent-1, #f3b958);--diagram-teal:var(--color-diagram-teal, #4bc292);--diagram-blue:var(--color-diagram-blue, #009dff);--diagram-purple:var(--color-diagram-purple, #8867a5);--diagram-orange:var(--color-diagram-orange, #f3b958)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 940" class="theme-diagram" data-theme-svg="1" role="img" aria-labelledby="diagram-63d35bf7e4-2-oit-page-bits-title diagram-63d35bf7e4-2-oit-page-bits-desc">
+<title id="diagram-63d35bf7e4-2-oit-page-bits-title">按页分配存储的数据布局</title>
+<desc id="diagram-63d35bf7e4-2-oit-page-bits-desc">Icare3D 示例中，每个像素通过三个独立资源保存 pageIdx、fragCount、semaphore，每项为 32 位无符号整数。页容量为四个片元；sharedPageList 中每个片元依次保存 R、G、B、Z 四项 32 位浮点数，每个片元 128 位，每页片元数据 512 位。每页另有 sharedLinkList 的 32 位链接，合计 544 位。图中下标为页内槽位，位偏移区间相对于一个片元元素。</desc>
+<style>
+.theme-diagram {
+  --d-bg: var(--diagram-background, #ffffff);
+  --d-ink: var(--diagram-text, #383838);
+  --d-accent: var(--diagram-accent, #2bbc8a);
+  --d-muted: color-mix(in srgb, var(--d-ink) 68%, var(--d-bg));
+  --d-border: color-mix(in srgb, var(--d-ink) 19%, var(--d-bg));
+  --d-surface: color-mix(in srgb, var(--d-ink) 3%, var(--d-bg));
+  --d-shadow: color-mix(in srgb, #000000 35%, var(--d-bg));
+  --d-teal: var(--diagram-teal, color-mix(in srgb, var(--d-accent) 76%, var(--d-ink)));
+  --d-blue: var(--diagram-blue, color-mix(in srgb, var(--d-accent) 28%, #6c91bc));
+  --d-purple: var(--diagram-purple, color-mix(in srgb, var(--d-accent) 15%, #a18ab9));
+  --d-orange: var(--diagram-orange, color-mix(in srgb, var(--d-accent) 10%, #d3a462));
+  font-family: var(--diagram-font, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif);
+}
+.theme-diagram text { font-family: inherit; }
+</style>
+<text x="48" y="50" font-size="26" text-anchor="start" fill="var(--d-ink)">pageIdx[x, y]</text><rect x="48" y="70" width="304" height="90" rx="3" fill="var(--d-teal)" fill-opacity="0.14" stroke="var(--d-teal)" stroke-width="2"/><text x="200" y="108" font-size="26" text-anchor="middle" fill="var(--d-ink)">uint32</text><text x="200" y="142" font-size="23" text-anchor="middle" fill="var(--d-muted)">32 bit · 4 B</text><text x="388" y="50" font-size="26" text-anchor="start" fill="var(--d-ink)">fragCount[x, y]</text><rect x="388" y="70" width="304" height="90" rx="3" fill="var(--d-blue)" fill-opacity="0.14" stroke="var(--d-blue)" stroke-width="2"/><text x="540" y="108" font-size="26" text-anchor="middle" fill="var(--d-ink)">uint32</text><text x="540" y="142" font-size="23" text-anchor="middle" fill="var(--d-muted)">32 bit · 4 B</text><text x="728" y="50" font-size="26" text-anchor="start" fill="var(--d-ink)">semaphore[x, y]</text><rect x="728" y="70" width="304" height="90" rx="3" fill="var(--d-orange)" fill-opacity="0.14" stroke="var(--d-orange)" stroke-width="2"/><text x="880" y="108" font-size="26" text-anchor="middle" fill="var(--d-ink)">uint32</text><text x="880" y="142" font-size="23" text-anchor="middle" fill="var(--d-muted)">32 bit · 4 B</text><text x="48" y="238" font-size="25" text-anchor="start" fill="var(--d-ink)">sharedPageList[pageIdx … pageIdx + 3]</text><text x="1032" y="238" font-size="24" text-anchor="end" fill="var(--d-muted)">512 bit · 64 B</text><text x="48" y="303" font-size="25" text-anchor="start" fill="var(--d-ink)">P[0]</text><text x="48" y="335" font-size="21" text-anchor="start" fill="var(--d-muted)">128 bit</text><rect x="160" y="266" width="218" height="88" rx="3" fill="var(--d-blue)" fill-opacity="0.14" stroke="var(--d-blue)" stroke-width="2"/><text x="269" y="300" font-size="28" text-anchor="middle" fill="var(--d-ink)">R</text><text x="269" y="333" font-size="21" text-anchor="middle" fill="var(--d-muted)">float32 · 32 bit</text><rect x="378" y="266" width="218" height="88" rx="3" fill="var(--d-teal)" fill-opacity="0.14" stroke="var(--d-teal)" stroke-width="2"/><text x="487" y="300" font-size="28" text-anchor="middle" fill="var(--d-ink)">G</text><text x="487" y="333" font-size="21" text-anchor="middle" fill="var(--d-muted)">float32 · 32 bit</text><rect x="596" y="266" width="218" height="88" rx="3" fill="var(--d-purple)" fill-opacity="0.14" stroke="var(--d-purple)" stroke-width="2"/><text x="705" y="300" font-size="28" text-anchor="middle" fill="var(--d-ink)">B</text><text x="705" y="333" font-size="21" text-anchor="middle" fill="var(--d-muted)">float32 · 32 bit</text><rect x="814" y="266" width="218" height="88" rx="3" fill="var(--d-orange)" fill-opacity="0.14" stroke="var(--d-orange)" stroke-width="2"/><text x="923" y="300" font-size="28" text-anchor="middle" fill="var(--d-ink)">Z</text><text x="923" y="333" font-size="21" text-anchor="middle" fill="var(--d-muted)">float32 · 32 bit</text><text x="48" y="408" font-size="25" text-anchor="start" fill="var(--d-ink)">P[1]</text><text x="48" y="440" font-size="21" text-anchor="start" fill="var(--d-muted)">128 bit</text><rect x="160" y="371" width="218" height="88" rx="3" fill="var(--d-blue)" fill-opacity="0.14" stroke="var(--d-blue)" stroke-width="2"/><text x="269" y="405" font-size="28" text-anchor="middle" fill="var(--d-ink)">R</text><text x="269" y="438" font-size="21" text-anchor="middle" fill="var(--d-muted)">float32 · 32 bit</text><rect x="378" y="371" width="218" height="88" rx="3" fill="var(--d-teal)" fill-opacity="0.14" stroke="var(--d-teal)" stroke-width="2"/><text x="487" y="405" font-size="28" text-anchor="middle" fill="var(--d-ink)">G</text><text x="487" y="438" font-size="21" text-anchor="middle" fill="var(--d-muted)">float32 · 32 bit</text><rect x="596" y="371" width="218" height="88" rx="3" fill="var(--d-purple)" fill-opacity="0.14" stroke="var(--d-purple)" stroke-width="2"/><text x="705" y="405" font-size="28" text-anchor="middle" fill="var(--d-ink)">B</text><text x="705" y="438" font-size="21" text-anchor="middle" fill="var(--d-muted)">float32 · 32 bit</text><rect x="814" y="371" width="218" height="88" rx="3" fill="var(--d-orange)" fill-opacity="0.14" stroke="var(--d-orange)" stroke-width="2"/><text x="923" y="405" font-size="28" text-anchor="middle" fill="var(--d-ink)">Z</text><text x="923" y="438" font-size="21" text-anchor="middle" fill="var(--d-muted)">float32 · 32 bit</text><text x="48" y="513" font-size="25" text-anchor="start" fill="var(--d-ink)">P[2]</text><text x="48" y="545" font-size="21" text-anchor="start" fill="var(--d-muted)">128 bit</text><rect x="160" y="476" width="218" height="88" rx="3" fill="var(--d-blue)" fill-opacity="0.14" stroke="var(--d-blue)" stroke-width="2"/><text x="269" y="510" font-size="28" text-anchor="middle" fill="var(--d-ink)">R</text><text x="269" y="543" font-size="21" text-anchor="middle" fill="var(--d-muted)">float32 · 32 bit</text><rect x="378" y="476" width="218" height="88" rx="3" fill="var(--d-teal)" fill-opacity="0.14" stroke="var(--d-teal)" stroke-width="2"/><text x="487" y="510" font-size="28" text-anchor="middle" fill="var(--d-ink)">G</text><text x="487" y="543" font-size="21" text-anchor="middle" fill="var(--d-muted)">float32 · 32 bit</text><rect x="596" y="476" width="218" height="88" rx="3" fill="var(--d-purple)" fill-opacity="0.14" stroke="var(--d-purple)" stroke-width="2"/><text x="705" y="510" font-size="28" text-anchor="middle" fill="var(--d-ink)">B</text><text x="705" y="543" font-size="21" text-anchor="middle" fill="var(--d-muted)">float32 · 32 bit</text><rect x="814" y="476" width="218" height="88" rx="3" fill="var(--d-orange)" fill-opacity="0.14" stroke="var(--d-orange)" stroke-width="2"/><text x="923" y="510" font-size="28" text-anchor="middle" fill="var(--d-ink)">Z</text><text x="923" y="543" font-size="21" text-anchor="middle" fill="var(--d-muted)">float32 · 32 bit</text><text x="48" y="618" font-size="25" text-anchor="start" fill="var(--d-ink)">P[3]</text><text x="48" y="650" font-size="21" text-anchor="start" fill="var(--d-muted)">128 bit</text><rect x="160" y="581" width="218" height="88" rx="3" fill="var(--d-blue)" fill-opacity="0.14" stroke="var(--d-blue)" stroke-width="2"/><text x="269" y="615" font-size="28" text-anchor="middle" fill="var(--d-ink)">R</text><text x="269" y="648" font-size="21" text-anchor="middle" fill="var(--d-muted)">float32 · 32 bit</text><rect x="378" y="581" width="218" height="88" rx="3" fill="var(--d-teal)" fill-opacity="0.14" stroke="var(--d-teal)" stroke-width="2"/><text x="487" y="615" font-size="28" text-anchor="middle" fill="var(--d-ink)">G</text><text x="487" y="648" font-size="21" text-anchor="middle" fill="var(--d-muted)">float32 · 32 bit</text><rect x="596" y="581" width="218" height="88" rx="3" fill="var(--d-purple)" fill-opacity="0.14" stroke="var(--d-purple)" stroke-width="2"/><text x="705" y="615" font-size="28" text-anchor="middle" fill="var(--d-ink)">B</text><text x="705" y="648" font-size="21" text-anchor="middle" fill="var(--d-muted)">float32 · 32 bit</text><rect x="814" y="581" width="218" height="88" rx="3" fill="var(--d-orange)" fill-opacity="0.14" stroke="var(--d-orange)" stroke-width="2"/><text x="923" y="615" font-size="28" text-anchor="middle" fill="var(--d-ink)">Z</text><text x="923" y="648" font-size="21" text-anchor="middle" fill="var(--d-muted)">float32 · 32 bit</text><text x="269" y="709" font-size="23" text-anchor="middle" fill="var(--d-muted)">0–31</text><text x="487" y="709" font-size="23" text-anchor="middle" fill="var(--d-muted)">32–63</text><text x="705" y="709" font-size="23" text-anchor="middle" fill="var(--d-muted)">64–95</text><text x="923" y="709" font-size="23" text-anchor="middle" fill="var(--d-muted)">96–127</text><text x="48" y="784" font-size="27" text-anchor="start" fill="var(--d-ink)">sharedLinkList[pageIdx / 4]</text><text x="1032" y="784" font-size="24" text-anchor="end" fill="var(--d-muted)">32 bit · 4 B</text><rect x="48.0" y="804" width="984.0" height="100" rx="3" fill="var(--d-purple)" fill-opacity="0.14" stroke="var(--d-purple)" stroke-width="2"/><text x="540.0" y="843" font-size="29" text-anchor="middle" fill="var(--d-ink)">Next</text><text x="540.0" y="880" font-size="23" text-anchor="middle" fill="var(--d-muted)">uint32 · 32 bit</text>
+</svg></a></figure>
+
+<p>片元池 <code>sharedPageList</code> 每个元素是 <code>vec4</code>，共 <strong>128 位，即 16 字节</strong>：前三个分量为各 32 位的 RGB，第四个分量是 32 位 <code>fragPos.z</code>。这里的 Z 是源码写入用于排序的值，不能直接当作线性深度；该 Demo 的普通混合使用固定 alpha 0.5，并未在片元记录里保存逐片元 alpha。</p>
+<p>一页有 4 个连续片元槽，片元数据占 <strong>512 位，即 64 字节</strong>。独立的 <code>sharedLinkList</code> 每页另存一个 32 位前页偏移，因此两份 buffer 中每页合计 <strong>544 位，即 68 字节</strong>；满页时平均为 17 字节&#x2F;片元，未计每像素资源、全局计数器或尾页空槽。图中每行的位号相对于单个片元，页链接位于独立 buffer。</p>
+<p>源码里的 <code>pageIdx</code> 是片元槽位起始偏移，0 表示空链；页容量为 4 时可用页起点为 4、8、12 等，页链接通过 <code>sharedLinkList[pageIdx / 4]</code> 访问。下方示意图中的 P0、P1 仅是逻辑页名称，并非源码中直接存储的偏移值。</p>
+<figure class="theme-svg-figure theme-svg-figure--asset"><a class="theme-svg-link" href="&#x2F;2026&#x2F;11&#x2F;17&#x2F;rendering-digest-2026-11-17&#x2F;oit-pages.svg" target="_blank" rel="noopener" aria-label="逐像素片元页链表的组织方式"><svg style="--diagram-background:var(--color-background, #222426);--diagram-text:var(--color-text, #e6e4e0);--diagram-accent:var(--color-accent-1, #f3b958);--diagram-teal:var(--color-diagram-teal, #4bc292);--diagram-blue:var(--color-diagram-blue, #009dff);--diagram-purple:var(--color-diagram-purple, #8867a5);--diagram-orange:var(--color-diagram-orange, #f3b958)" xmlns="http://www.w3.org/2000/svg" viewBox="0 125 1080 670" class="theme-diagram" data-theme-svg="1" role="img" aria-labelledby="diagram-abd99d4e7a-3-oit-pages-title diagram-abd99d4e7a-3-oit-pages-desc"><title id="diagram-abd99d4e7a-3-oit-pages-title">逐像素片元页</title><desc id="diagram-abd99d4e7a-3-oit-pages-desc">同一像素的五个透明片元存放在两个片元页中，每页四个槽。像素头指针指向 P1，P1 存一个片元并留有三个空槽，P0 存四个片元。独立页链接记录将 P1 指向 P0，P0 指向空；每个片元只包含颜色和深度，没有片元级 next 字段。这是静态存储示意，页中片元未按深度排序。</desc><style>
+.theme-diagram {
+  --d-bg: var(--diagram-background, #ffffff);
+  --d-ink: var(--diagram-text, #383838);
+  --d-accent: var(--diagram-accent, #2bbc8a);
+  --d-muted: color-mix(in srgb, var(--d-ink) 68%, var(--d-bg));
+  --d-border: color-mix(in srgb, var(--d-ink) 19%, var(--d-bg));
+  --d-surface: color-mix(in srgb, var(--d-ink) 3%, var(--d-bg));
+  --d-shadow: color-mix(in srgb, #000000 35%, var(--d-bg));
+  --d-teal: var(--diagram-teal, color-mix(in srgb, var(--d-accent) 76%, var(--d-ink)));
+  --d-blue: var(--diagram-blue, color-mix(in srgb, var(--d-accent) 28%, #6c91bc));
+  --d-purple: var(--diagram-purple, color-mix(in srgb, var(--d-accent) 15%, #a18ab9));
+  --d-orange: var(--diagram-orange, color-mix(in srgb, var(--d-accent) 10%, #d3a462));
+  font-family: var(--diagram-font, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif);
+}
+.theme-diagram text { font-family: inherit; }
+</style><defs><marker id="diagram-abd99d4e7a-3-oit-pages-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10Z" fill="context-stroke"/></marker></defs>
+<rect x="0" y="0" width="1080" height="830" rx="0" fill="var(--d-bg)" stroke="var(--d-bg)" stroke-width="1.5"/>
+
+
+<path d="M45 325 L75 150 L130 310Z" fill="var(--d-blue)" fill-opacity="0.2" stroke="var(--d-blue)" stroke-width="2"/>
+<path d="M130 325 L160 159 L215 310Z" fill="var(--d-orange)" fill-opacity="0.2" stroke="var(--d-orange)" stroke-width="2"/>
+<path d="M215 325 L245 168 L300 310Z" fill="var(--d-purple)" fill-opacity="0.2" stroke="var(--d-purple)" stroke-width="2"/>
+<path d="M300 325 L330 177 L385 310Z" fill="var(--d-teal)" fill-opacity="0.2" stroke="var(--d-teal)" stroke-width="2"/>
+<path d="M385 325 L415 186 L470 310Z" fill="var(--d-blue)" fill-opacity="0.2" stroke="var(--d-blue)" stroke-width="2"/>
+<path d="M48 265 L606 265" fill="none" stroke="var(--d-muted)" stroke-width="2" marker-end="url(#diagram-abd99d4e7a-3-oit-pages-arrow)" stroke-dasharray="6 5"/>
+<circle cx="80" cy="265" r="9" fill="var(--d-blue)" stroke="var(--d-bg)" stroke-width="2"/>
+
+<circle cx="165" cy="265" r="9" fill="var(--d-orange)" stroke="var(--d-bg)" stroke-width="2"/>
+
+<circle cx="250" cy="265" r="9" fill="var(--d-purple)" stroke="var(--d-bg)" stroke-width="2"/>
+
+<circle cx="335" cy="265" r="9" fill="var(--d-teal)" stroke="var(--d-bg)" stroke-width="2"/>
+
+<circle cx="420" cy="265" r="9" fill="var(--d-blue)" stroke="var(--d-bg)" stroke-width="2"/>
+
+
+<text x="414" y="222" fill="var(--d-ink)" font-size="20" font-weight="normal" text-anchor="start">片元</text>
+<rect x="610" y="205" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="650" y="205" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="690" y="205" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="730" y="205" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="610" y="245" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="650" y="245" width="40" height="40" rx="0" fill="var(--d-accent)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="690" y="245" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="730" y="245" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="610" y="285" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="650" y="285" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="690" y="285" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="730" y="285" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="610" y="325" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="650" y="325" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="690" y="325" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="730" y="325" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<text x="630" y="188" fill="var(--d-ink)" font-size="22" font-weight="normal" text-anchor="start">像素网格</text>
+<text x="670" y="272" fill="var(--d-ink)" font-size="24" font-weight="600" text-anchor="middle">A</text>
+<path d="M770 265 L814 265" fill="none" stroke="var(--d-muted)" stroke-width="2" marker-end="url(#diagram-abd99d4e7a-3-oit-pages-arrow)"/>
+<rect x="832" y="218" width="212" height="100" rx="8" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<text x="850" y="249" fill="var(--d-ink)" font-size="22" font-weight="600" text-anchor="start">像素 A</text>
+<text x="850" y="285" fill="var(--d-ink)" font-size="21" font-weight="normal" text-anchor="start">head</text>
+
+<path d="M937 320 L937 420 L261 420 L261 495" fill="none" stroke="var(--d-accent)" stroke-width="2" marker-end="url(#diagram-abd99d4e7a-3-oit-pages-arrow)"/>
+<text x="36" y="470" fill="var(--d-ink)" font-size="24">片元页池</text>
+<rect x="36" y="500" width="450" height="150" rx="8" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<text x="54" y="530" fill="var(--d-ink)" font-size="22">P1</text>
+<rect x="52" y="546" width="100" height="84" rx="5" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="61" y="556" width="11" height="62" rx="3" fill="var(--d-blue)"/>
+<text x="80" y="573" fill="var(--d-muted)" font-size="15">颜色</text>
+<text x="80" y="603" fill="var(--d-ink)" font-size="18">深度</text>
+<rect x="158" y="546" width="100" height="84" rx="5" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="1.5"/>
+<text x="185" y="594" fill="var(--d-muted)" font-size="18">空槽</text>
+<rect x="264" y="546" width="100" height="84" rx="5" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="1.5"/>
+<text x="291" y="594" fill="var(--d-muted)" font-size="18">空槽</text>
+<rect x="370" y="546" width="100" height="84" rx="5" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="1.5"/>
+<text x="397" y="594" fill="var(--d-muted)" font-size="18">空槽</text>
+<rect x="566" y="500" width="450" height="150" rx="8" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<text x="584" y="530" fill="var(--d-ink)" font-size="22">P0</text>
+<rect x="582" y="546" width="100" height="84" rx="5" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="591" y="556" width="11" height="62" rx="3" fill="var(--d-blue)"/>
+<text x="610" y="573" fill="var(--d-muted)" font-size="15">颜色</text>
+<text x="610" y="603" fill="var(--d-ink)" font-size="18">深度</text>
+<rect x="688" y="546" width="100" height="84" rx="5" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="697" y="556" width="11" height="62" rx="3" fill="var(--d-orange)"/>
+<text x="716" y="573" fill="var(--d-muted)" font-size="15">颜色</text>
+<text x="716" y="603" fill="var(--d-ink)" font-size="18">深度</text>
+<rect x="794" y="546" width="100" height="84" rx="5" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="803" y="556" width="11" height="62" rx="3" fill="var(--d-purple)"/>
+<text x="822" y="573" fill="var(--d-muted)" font-size="15">颜色</text>
+<text x="822" y="603" fill="var(--d-ink)" font-size="18">深度</text>
+<rect x="900" y="546" width="100" height="84" rx="5" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="909" y="556" width="11" height="62" rx="3" fill="var(--d-teal)"/>
+<text x="928" y="573" fill="var(--d-muted)" font-size="15">颜色</text>
+<text x="928" y="603" fill="var(--d-ink)" font-size="18">深度</text>
+<text x="36" y="692" fill="var(--d-ink)" font-size="24">页链接</text>
+<rect x="36" y="710" width="450" height="56" rx="8" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<text x="54" y="746" fill="var(--d-ink)" font-size="22">P1</text>
+<text x="128" y="746" fill="var(--d-muted)" font-size="20">next</text>
+<circle cx="450" cy="738" r="4" fill="var(--d-ink)"/>
+<rect x="566" y="710" width="450" height="56" rx="8" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<text x="584" y="746" fill="var(--d-ink)" font-size="22">P0</text>
+<text x="658" y="746" fill="var(--d-muted)" font-size="20">next</text>
+<circle cx="980" cy="738" r="4" fill="var(--d-ink)"/>
+<path d="M456 738 L530 738 L530 575 L563 575" fill="none" stroke="var(--d-accent)" stroke-width="2" marker-end="url(#diagram-abd99d4e7a-3-oit-pages-arrow)"/>
+<path d="M986 738 L1038 738" fill="none" stroke="var(--d-accent)" stroke-width="2" marker-end="url(#diagram-abd99d4e7a-3-oit-pages-arrow)"/>
+<text x="1044" y="746" fill="var(--d-ink)" font-size="22">∅</text>
+</svg></a></figure>
+
+<p>上图展示像素 A 的 5 个片元如何分布在两页中：每页 4 个槽位，P1 有 1 个片元和 3 个空槽，P0 有 4 个片元。像素的 head 指向 P1，独立的页链接将 P1 指向 P0，P0 的链接标记链表结束。Resolve 沿页链接读取有效片元，再按深度排序。P0 和 P1 是示意名称，链表顺序不等于深度顺序。</p>
+<p>每个像素记录当前页索引和已收集的片元数。新片元写入当前页的空槽；像素还没有页，或当前页已满时，才从全局页池申请新页，并将新页链接到原来的页。原实现使用同步保护同一像素的并发页分配。</p>
+<h2 id="分页省下了哪些开销"><a href="#分页省下了哪些开销" class="headerlink" title="分页省下了哪些开销"></a>分页省下了哪些开销</h2><p>两种方式处理相同的 5 个片元时，逐片元链表需要分配 5 个节点，每个节点各存一个链接。以每页 4 槽为例，分页方式分配 2 页，每页保存一条页链接；最后一页有 3 个空槽。这里的链接数包含指向空的末项，不计像素 head。</p>
+<figure class="theme-svg-figure theme-svg-figure--asset"><a class="theme-svg-link" href="&#x2F;2026&#x2F;11&#x2F;17&#x2F;rendering-digest-2026-11-17&#x2F;oit-page-comparison.svg" target="_blank" rel="noopener" aria-label="同样五个片元的逐节点与分页存储对比"><svg style="--diagram-background:var(--color-background, #222426);--diagram-text:var(--color-text, #e6e4e0);--diagram-accent:var(--color-accent-1, #f3b958);--diagram-teal:var(--color-diagram-teal, #4bc292);--diagram-blue:var(--color-diagram-blue, #009dff);--diagram-purple:var(--color-diagram-purple, #8867a5);--diagram-orange:var(--color-diagram-orange, #f3b958)" xmlns="http://www.w3.org/2000/svg" viewBox="0 110 1080 480" class="theme-diagram" data-theme-svg="1" role="img" aria-labelledby="diagram-eb8373538b-4-oit-page-comparison-title diagram-eb8373538b-4-oit-page-comparison-desc"><title id="diagram-eb8373538b-4-oit-page-comparison-title">同样五个片元，两种存法</title><desc id="diagram-eb8373538b-4-oit-page-comparison-desc">逐片元链表五个节点需要五次节点分配与五个链接项；四槽片元页用两个页分配与两个链接项，页内连续，末页三个槽空置。像素head不计入链接数。</desc><style>
+.theme-diagram {
+  --d-bg: var(--diagram-background, #ffffff);
+  --d-ink: var(--diagram-text, #383838);
+  --d-accent: var(--diagram-accent, #2bbc8a);
+  --d-muted: color-mix(in srgb, var(--d-ink) 68%, var(--d-bg));
+  --d-border: color-mix(in srgb, var(--d-ink) 19%, var(--d-bg));
+  --d-surface: color-mix(in srgb, var(--d-ink) 3%, var(--d-bg));
+  --d-shadow: color-mix(in srgb, #000000 35%, var(--d-bg));
+  --d-teal: var(--diagram-teal, color-mix(in srgb, var(--d-accent) 76%, var(--d-ink)));
+  --d-blue: var(--diagram-blue, color-mix(in srgb, var(--d-accent) 28%, #6c91bc));
+  --d-purple: var(--diagram-purple, color-mix(in srgb, var(--d-accent) 15%, #a18ab9));
+  --d-orange: var(--diagram-orange, color-mix(in srgb, var(--d-accent) 10%, #d3a462));
+  font-family: var(--diagram-font, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif);
+}
+.theme-diagram text { font-family: inherit; }
+</style><defs><marker id="diagram-eb8373538b-4-oit-page-comparison-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10Z" fill="context-stroke"/></marker></defs>
+<rect x="0" y="0" width="1080" height="660" rx="0" fill="var(--d-bg)" stroke="var(--d-bg)" stroke-width="2"/>
+
+
+<rect x="28" y="115" width="1024" height="208" rx="12" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="2"/>
+<text x="48" y="155" fill="var(--d-ink)" font-size="25" font-weight="600" text-anchor="start">逐片元节点</text>
+
+<text x="49" y="234" fill="var(--d-ink)" font-size="22" font-weight="600" text-anchor="start">head</text>
+<path d="M 110 225 L 157 225" fill="none" stroke="var(--d-accent)" stroke-width="3" marker-end="url(#diagram-eb8373538b-4-oit-page-comparison-arrow)"/>
+<rect x="175" y="183" width="96" height="87" rx="12" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="2"/>
+<path d="M223 196 L248 210 L248 238 L223 252 L198 238 L198 210Z" fill="var(--d-accent)" fill-opacity="0.22" stroke="var(--d-accent)" stroke-width="2"/>
+<text x="223" y="232" fill="var(--d-ink)" font-size="25" font-weight="600" text-anchor="middle">5</text>
+<path d="M 271 225 L 322 225" fill="none" stroke="var(--d-accent)" stroke-width="3" marker-end="url(#diagram-eb8373538b-4-oit-page-comparison-arrow)"/>
+<rect x="339" y="183" width="96" height="87" rx="12" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="2"/>
+<path d="M387 196 L412 210 L412 238 L387 252 L362 238 L362 210Z" fill="var(--d-teal)" fill-opacity="0.22" stroke="var(--d-teal)" stroke-width="2"/>
+<text x="387" y="232" fill="var(--d-ink)" font-size="25" font-weight="600" text-anchor="middle">4</text>
+<path d="M 435 225 L 486 225" fill="none" stroke="var(--d-accent)" stroke-width="3" marker-end="url(#diagram-eb8373538b-4-oit-page-comparison-arrow)"/>
+<rect x="503" y="183" width="96" height="87" rx="12" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="2"/>
+<path d="M551 196 L576 210 L576 238 L551 252 L526 238 L526 210Z" fill="var(--d-purple)" fill-opacity="0.22" stroke="var(--d-purple)" stroke-width="2"/>
+<text x="551" y="232" fill="var(--d-ink)" font-size="25" font-weight="600" text-anchor="middle">3</text>
+<path d="M 599 225 L 650 225" fill="none" stroke="var(--d-accent)" stroke-width="3" marker-end="url(#diagram-eb8373538b-4-oit-page-comparison-arrow)"/>
+<rect x="667" y="183" width="96" height="87" rx="12" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="2"/>
+<path d="M715 196 L740 210 L740 238 L715 252 L690 238 L690 210Z" fill="var(--d-orange)" fill-opacity="0.22" stroke="var(--d-orange)" stroke-width="2"/>
+<text x="715" y="232" fill="var(--d-ink)" font-size="25" font-weight="600" text-anchor="middle">2</text>
+<path d="M 763 225 L 814 225" fill="none" stroke="var(--d-accent)" stroke-width="3" marker-end="url(#diagram-eb8373538b-4-oit-page-comparison-arrow)"/>
+<rect x="831" y="183" width="96" height="87" rx="12" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="2"/>
+<path d="M879 196 L904 210 L904 238 L879 252 L854 238 L854 210Z" fill="var(--d-blue)" fill-opacity="0.22" stroke="var(--d-blue)" stroke-width="2"/>
+<text x="879" y="232" fill="var(--d-ink)" font-size="25" font-weight="600" text-anchor="middle">1</text>
+<path d="M 927 225 L 978 225" fill="none" stroke="var(--d-accent)" stroke-width="3" marker-end="url(#diagram-eb8373538b-4-oit-page-comparison-arrow)"/>
+<text x="1012" y="234" fill="var(--d-muted)" font-size="20" font-weight="400" text-anchor="middle">∅</text>
+
+<rect x="28" y="343" width="1024" height="244" rx="12" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="2"/>
+<text x="48" y="384" fill="var(--d-ink)" font-size="25" font-weight="600" text-anchor="start">逐像素片元页</text>
+
+<text x="49" y="475" fill="var(--d-ink)" font-size="22" font-weight="600" text-anchor="start">head</text>
+<path d="M 110 466 L 169 466" fill="none" stroke="var(--d-accent)" stroke-width="3" marker-end="url(#diagram-eb8373538b-4-oit-page-comparison-arrow)"/>
+<rect x="180" y="405" width="300" height="124" rx="12" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="2"/>
+<text x="464" y="433" fill="var(--d-ink)" font-size="21" font-weight="600" text-anchor="end">P1</text>
+<rect x="197" y="448" width="59" height="63" rx="6" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="2"/>
+<path d="M226.5 451 L251.5 465 L251.5 493 L226.5 507 L201.5 493 L201.5 465Z" fill="var(--d-accent)" fill-opacity="0.22" stroke="var(--d-accent)" stroke-width="2"/>
+<text x="226.5" y="487" fill="var(--d-ink)" font-size="25" font-weight="600" text-anchor="middle">5</text>
+<rect x="264" y="448" width="59" height="63" rx="6" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="2"/>
+<rect x="331" y="448" width="59" height="63" rx="6" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="2"/>
+<rect x="398" y="448" width="59" height="63" rx="6" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="2"/>
+<rect x="615" y="405" width="300" height="124" rx="12" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="2"/>
+<text x="899" y="433" fill="var(--d-ink)" font-size="21" font-weight="600" text-anchor="end">P0</text>
+<rect x="632" y="448" width="59" height="63" rx="6" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="2"/>
+<path d="M661.5 451 L686.5 465 L686.5 493 L661.5 507 L636.5 493 L636.5 465Z" fill="var(--d-blue)" fill-opacity="0.22" stroke="var(--d-blue)" stroke-width="2"/>
+<text x="661.5" y="487" fill="var(--d-ink)" font-size="25" font-weight="600" text-anchor="middle">1</text>
+<rect x="699" y="448" width="59" height="63" rx="6" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="2"/>
+<path d="M728.5 451 L753.5 465 L753.5 493 L728.5 507 L703.5 493 L703.5 465Z" fill="var(--d-orange)" fill-opacity="0.22" stroke="var(--d-orange)" stroke-width="2"/>
+<text x="728.5" y="487" fill="var(--d-ink)" font-size="25" font-weight="600" text-anchor="middle">2</text>
+<rect x="766" y="448" width="59" height="63" rx="6" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="2"/>
+<path d="M795.5 451 L820.5 465 L820.5 493 L795.5 507 L770.5 493 L770.5 465Z" fill="var(--d-purple)" fill-opacity="0.22" stroke="var(--d-purple)" stroke-width="2"/>
+<text x="795.5" y="487" fill="var(--d-ink)" font-size="25" font-weight="600" text-anchor="middle">3</text>
+<rect x="833" y="448" width="59" height="63" rx="6" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="2"/>
+<path d="M862.5 451 L887.5 465 L887.5 493 L862.5 507 L837.5 493 L837.5 465Z" fill="var(--d-teal)" fill-opacity="0.22" stroke="var(--d-teal)" stroke-width="2"/>
+<text x="862.5" y="487" fill="var(--d-ink)" font-size="25" font-weight="600" text-anchor="middle">4</text>
+<path d="M 480 468 L 605 468" fill="none" stroke="var(--d-accent)" stroke-width="3" marker-end="url(#diagram-eb8373538b-4-oit-page-comparison-arrow)"/>
+<path d="M 915 468 L 986 468" fill="none" stroke="var(--d-accent)" stroke-width="3" marker-end="url(#diagram-eb8373538b-4-oit-page-comparison-arrow)"/>
+<text x="1008" y="475" fill="var(--d-muted)" font-size="20" font-weight="400" text-anchor="middle">∅</text>
+<text x="330" y="563" fill="var(--d-muted)" font-size="21" font-weight="400" text-anchor="middle">空槽</text>
+
+
+
+</svg></a></figure>
+
+<p>分页将分配和链接的粒度从单个片元扩大到一组片元。每次页分配可以服务多个片元，平均指针存储更少；同一页内连续存放的数据也更有机会利用缓存和合并内存访问。</p>
+<p>这些收益有代价。末页空槽会浪费空间，同一像素的并发片元需要协调计数与页分配。原实现每片元仍有计数和同步工作，不能把页分配次数减少直接等同于原子操作总数减少。缓存命中率与总体性能取决于具体场景、页大小和硬件，需要实测。</p>
+<p>这些图为重新绘制的结构示意，分别参考上述 AMD 演讲与 Icare3D 文章；页大小和索引用作解释，不代表所有实现的固定参数。</p>
+<h2 id="常规排序与链表各有代价"><a href="#常规排序与链表各有代价" class="headerlink" title="常规排序与链表各有代价"></a>常规排序与链表各有代价</h2><p>我的判断是，透明物体之间层次清楚、重叠较少时，常规排序加 alpha 混合通常更值得先尝试：实现简单，也无需为每个透明片元分配节点和执行全屏链表 resolve。</p>
+<p>PPLL 的优势出现在物体级排序难以描述的情况，例如相交曲面或层次复杂的半透明外壳。它能按像素恢复已收集片元的深度顺序，代价是节点池显存、原子写入、离散内存访问、逐像素排序与混合。透明覆盖面积和深度复杂度上升时，这些成本也会变化；应在目标场景中测量，而不能仅凭绘制次数判断性能。</p>
+<p>分页链表针对分配粒度和访问局部性做了不同取舍，不能直接认定它一定快于单片元节点。Icare3D 原文中的速度和显存数字比较的是分页版本与其早先固定容量 A-buffer，不能拿来当作两种链表之间的基准。</p>
+<h2 id="VTK-的实际实现"><a href="#VTK-的实际实现" class="headerlink" title="VTK 的实际实现"></a>VTK 的实际实现</h2><p>VTK WebGPU 后端的 deep framebuffer 采用逐像素片元列表。它在一次透明几何 pass 中收集片元，再通过全屏 resolve 排序和混合。当前 resolve 最多保留每像素已收集片元中最近的 16 层；共享片元池耗尽时，部分片元可能在排序前就丢失，因而无法保证保留的是原始场景最近的 16 层。</p>
+<p><a target="_blank" rel="noopener" href="https://www.kitware.com/better-transparency-with-vtk-and-webgpu/">Kitware 的测试</a>在 M4 Pro Mac mini、1000 × 800 的 Engine 场景中测得完成帧时间：WebGPU deep framebuffer 4.8 ms，OpenGL depth peeling 26.2 ms，OpenGL 加权 OIT 2.9 ms。</p>
+<h2 id="存不下全部片元时"><a href="#存不下全部片元时" class="headerlink" title="存不下全部片元时"></a>存不下全部片元时</h2><p>Chris Wyman 在 <a target="_blank" rel="noopener" href="https://research.nvidia.com/labs/rtr/publication/wyman2016exploring/">2016 年的 OIT 论文</a>中，将透明算法放在多维取舍空间中比较：如何限制内存、选择保留哪些片元、空间不足时怎样合并或丢弃，以及用 alpha 还是覆盖掩码表示透明度。</p>
+<p>论文提出的两种方法与上面的链表存储粒度属于不同层面的选择：</p>
+<ul>
+<li><strong>SLAB</strong> 把每像素保留的深度层数与覆盖采样精度分开控制。片元根据随机覆盖情况进入有限层，超出预算时丢弃较远层；采样精度、噪声和有限层引入的偏差需要共同权衡。</li>
+<li><strong>MLCB</strong> 在有限层中保存深度、颜色和覆盖掩码。空间不足时，它合并最远的两层，并考虑前层对覆盖样本的遮挡。覆盖信息有助于结合抗锯齿与透明累积，但有限掩码会带来量化或噪声，合并本身也可能引入顺序依赖。</li>
+</ul>
+<p>这两种方法提供了固定预算下的近似选择。具体采用哪一种，需要结合透明层数、画面误差和硬件成本评估。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://www.slideshare.net/slideshow/oit-and-indirect-illumination-using-dx11-linked-lists/3443500">OIT and Indirect Illumination Using DX11 Linked Lists</a>，Holger Gruen、Nicolas Thibieroz。</li>
+<li><a target="_blank" rel="noopener" href="https://www.icare3d.org/codes-and-projects/codes/opengl-4-0-abuffer-v2-0-linked-lists-of-fragment-pages.html">OpenGL ABuffer V2.0</a>，Cyril Crassin，2010 年。</li>
+<li><a target="_blank" rel="noopener" href="https://www.kitware.com/better-transparency-with-vtk-and-webgpu/">Better Transparency with VTK and WebGPU</a>，Kitware，2026 年。</li>
+<li><a target="_blank" rel="noopener" href="https://research.nvidia.com/labs/rtr/publication/wyman2016exploring/">Exploring and Expanding the Continuum of OIT Algorithms</a>，Chris Wyman，2016 年。</li>
+</ul>
+
+      </div>
+      
+        <p class="post-license">
+          <span data-ui-lang="zh-CN">本文采用</span><span data-ui-lang="en">Licensed under</span>
+          <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="license noopener">CC BY-NC 4.0</a>
+          <span data-ui-lang="zh-CN">许可</span><span data-ui-lang="en"></span>
+        </p>
+      
+    </div>
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a class="chip px" href="/tags/%E9%80%8F%E6%98%8E%E6%B8%B2%E6%9F%93/">#透明渲染</a>
+          
+            <a class="chip px" href="/tags/OIT/">#OIT</a>
+          
+            <a class="chip px" href="/tags/GPU-%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/">#GPU 数据结构</a>
+          
+            <a class="chip px" href="/tags/WebGPU/">#WebGPU</a>
+          
+        </div>
+      
+      
+      <nav class="post-nav" data-i18n-aria-label="post.navigation" aria-label="文章导航">
+        <span></span>
+        
+          <a class="post-nav__item post-nav__next card" data-tilt href="/2026/11/16/rendering-digest-2026-11-16/">
+            <span class="card__inner">
+              <span class="post-nav__label px"><span data-ui-lang="zh-CN">下一篇</span><span data-ui-lang="en">Older</span> · 2026-11-16</span>
+              <span class="post-nav__title">Nanite Dynamic Wind 植被风模拟</span>
+              <span class="card__foil" aria-hidden="true"></span>
+            </span>
+          </a>
+        
+      </nav>
+      
+    </footer>
+
+    
+
+<section class="comments panel" id="comments"
+  data-repo="FrostyLeaves/frostyleaves.github.io"
+  data-issue-term="og:title"
+  data-label="utterances"></section>
+
+
+  </div>
+
+  
+  <aside class="post-aside">
+    
+
+<nav class="reading-rail" data-i18n-aria-label="post.toc" aria-label="目录">
+  <div class="reading-rail__head px">
+    <span><span data-ui-lang="zh-CN">目录</span><span data-ui-lang="en">Contents</span></span>
+    <span class="reading-rail__percent" data-reading-percent aria-hidden="true">000%</span>
+  </div>
+  <div class="reading-rail__stage">
+    <div class="reading-rail__chapters"><ol class="toc-list"><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%85%88%E6%8A%8A%E7%89%87%E5%85%83%E6%94%B6%E9%9B%86%E5%88%B0%E5%83%8F%E7%B4%A0"><span class="toc-list-text">先把片元收集到像素</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%9F%BA%E4%BA%8E%E5%83%8F%E7%B4%A0%E7%9A%84%E9%93%BE%E8%A1%A8"><span class="toc-list-text">基于像素的链表</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E6%8C%89%E9%A1%B5%E5%88%86%E9%85%8D%E5%AD%98%E5%82%A8"><span class="toc-list-text">按页分配存储</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%88%86%E9%A1%B5%E7%9C%81%E4%B8%8B%E4%BA%86%E5%93%AA%E4%BA%9B%E5%BC%80%E9%94%80"><span class="toc-list-text">分页省下了哪些开销</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%B8%B8%E8%A7%84%E6%8E%92%E5%BA%8F%E4%B8%8E%E9%93%BE%E8%A1%A8%E5%90%84%E6%9C%89%E4%BB%A3%E4%BB%B7"><span class="toc-list-text">常规排序与链表各有代价</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#VTK-%E7%9A%84%E5%AE%9E%E9%99%85%E5%AE%9E%E7%8E%B0"><span class="toc-list-text">VTK 的实际实现</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%AD%98%E4%B8%8D%E4%B8%8B%E5%85%A8%E9%83%A8%E7%89%87%E5%85%83%E6%97%B6"><span class="toc-list-text">存不下全部片元时</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="toc-list-text">参考资料</span></a></li></ol></div>
+    <div class="reading-rail__ruler" role="scrollbar" tabindex="0" aria-controls="drift-post-content" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-i18n-aria-label="post.reading_progress" aria-label="阅读进度">
+      <div class="reading-rail__ticks" aria-hidden="true">
+        
+        <span class="reading-rail__tick is-major" style="top: 0%"><b>0</b></span>
+        
+        <span class="reading-rail__tick" style="top: 1%"></span>
+        
+        <span class="reading-rail__tick" style="top: 2%"></span>
+        
+        <span class="reading-rail__tick" style="top: 3%"></span>
+        
+        <span class="reading-rail__tick" style="top: 4%"></span>
+        
+        <span class="reading-rail__tick" style="top: 5%"></span>
+        
+        <span class="reading-rail__tick" style="top: 6%"></span>
+        
+        <span class="reading-rail__tick" style="top: 7%"></span>
+        
+        <span class="reading-rail__tick" style="top: 8%"></span>
+        
+        <span class="reading-rail__tick" style="top: 9%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 10%"><b>10</b></span>
+        
+        <span class="reading-rail__tick" style="top: 11%"></span>
+        
+        <span class="reading-rail__tick" style="top: 12%"></span>
+        
+        <span class="reading-rail__tick" style="top: 13%"></span>
+        
+        <span class="reading-rail__tick" style="top: 14%"></span>
+        
+        <span class="reading-rail__tick" style="top: 15%"></span>
+        
+        <span class="reading-rail__tick" style="top: 16%"></span>
+        
+        <span class="reading-rail__tick" style="top: 17%"></span>
+        
+        <span class="reading-rail__tick" style="top: 18%"></span>
+        
+        <span class="reading-rail__tick" style="top: 19%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 20%"><b>20</b></span>
+        
+        <span class="reading-rail__tick" style="top: 21%"></span>
+        
+        <span class="reading-rail__tick" style="top: 22%"></span>
+        
+        <span class="reading-rail__tick" style="top: 23%"></span>
+        
+        <span class="reading-rail__tick" style="top: 24%"></span>
+        
+        <span class="reading-rail__tick" style="top: 25%"></span>
+        
+        <span class="reading-rail__tick" style="top: 26%"></span>
+        
+        <span class="reading-rail__tick" style="top: 27%"></span>
+        
+        <span class="reading-rail__tick" style="top: 28%"></span>
+        
+        <span class="reading-rail__tick" style="top: 29%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 30%"><b>30</b></span>
+        
+        <span class="reading-rail__tick" style="top: 31%"></span>
+        
+        <span class="reading-rail__tick" style="top: 32%"></span>
+        
+        <span class="reading-rail__tick" style="top: 33%"></span>
+        
+        <span class="reading-rail__tick" style="top: 34%"></span>
+        
+        <span class="reading-rail__tick" style="top: 35%"></span>
+        
+        <span class="reading-rail__tick" style="top: 36%"></span>
+        
+        <span class="reading-rail__tick" style="top: 37%"></span>
+        
+        <span class="reading-rail__tick" style="top: 38%"></span>
+        
+        <span class="reading-rail__tick" style="top: 39%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 40%"><b>40</b></span>
+        
+        <span class="reading-rail__tick" style="top: 41%"></span>
+        
+        <span class="reading-rail__tick" style="top: 42%"></span>
+        
+        <span class="reading-rail__tick" style="top: 43%"></span>
+        
+        <span class="reading-rail__tick" style="top: 44%"></span>
+        
+        <span class="reading-rail__tick" style="top: 45%"></span>
+        
+        <span class="reading-rail__tick" style="top: 46%"></span>
+        
+        <span class="reading-rail__tick" style="top: 47%"></span>
+        
+        <span class="reading-rail__tick" style="top: 48%"></span>
+        
+        <span class="reading-rail__tick" style="top: 49%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 50%"><b>50</b></span>
+        
+        <span class="reading-rail__tick" style="top: 51%"></span>
+        
+        <span class="reading-rail__tick" style="top: 52%"></span>
+        
+        <span class="reading-rail__tick" style="top: 53%"></span>
+        
+        <span class="reading-rail__tick" style="top: 54%"></span>
+        
+        <span class="reading-rail__tick" style="top: 55%"></span>
+        
+        <span class="reading-rail__tick" style="top: 56%"></span>
+        
+        <span class="reading-rail__tick" style="top: 57%"></span>
+        
+        <span class="reading-rail__tick" style="top: 58%"></span>
+        
+        <span class="reading-rail__tick" style="top: 59%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 60%"><b>60</b></span>
+        
+        <span class="reading-rail__tick" style="top: 61%"></span>
+        
+        <span class="reading-rail__tick" style="top: 62%"></span>
+        
+        <span class="reading-rail__tick" style="top: 63%"></span>
+        
+        <span class="reading-rail__tick" style="top: 64%"></span>
+        
+        <span class="reading-rail__tick" style="top: 65%"></span>
+        
+        <span class="reading-rail__tick" style="top: 66%"></span>
+        
+        <span class="reading-rail__tick" style="top: 67%"></span>
+        
+        <span class="reading-rail__tick" style="top: 68%"></span>
+        
+        <span class="reading-rail__tick" style="top: 69%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 70%"><b>70</b></span>
+        
+        <span class="reading-rail__tick" style="top: 71%"></span>
+        
+        <span class="reading-rail__tick" style="top: 72%"></span>
+        
+        <span class="reading-rail__tick" style="top: 73%"></span>
+        
+        <span class="reading-rail__tick" style="top: 74%"></span>
+        
+        <span class="reading-rail__tick" style="top: 75%"></span>
+        
+        <span class="reading-rail__tick" style="top: 76%"></span>
+        
+        <span class="reading-rail__tick" style="top: 77%"></span>
+        
+        <span class="reading-rail__tick" style="top: 78%"></span>
+        
+        <span class="reading-rail__tick" style="top: 79%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 80%"><b>80</b></span>
+        
+        <span class="reading-rail__tick" style="top: 81%"></span>
+        
+        <span class="reading-rail__tick" style="top: 82%"></span>
+        
+        <span class="reading-rail__tick" style="top: 83%"></span>
+        
+        <span class="reading-rail__tick" style="top: 84%"></span>
+        
+        <span class="reading-rail__tick" style="top: 85%"></span>
+        
+        <span class="reading-rail__tick" style="top: 86%"></span>
+        
+        <span class="reading-rail__tick" style="top: 87%"></span>
+        
+        <span class="reading-rail__tick" style="top: 88%"></span>
+        
+        <span class="reading-rail__tick" style="top: 89%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 90%"><b>90</b></span>
+        
+        <span class="reading-rail__tick" style="top: 91%"></span>
+        
+        <span class="reading-rail__tick" style="top: 92%"></span>
+        
+        <span class="reading-rail__tick" style="top: 93%"></span>
+        
+        <span class="reading-rail__tick" style="top: 94%"></span>
+        
+        <span class="reading-rail__tick" style="top: 95%"></span>
+        
+        <span class="reading-rail__tick" style="top: 96%"></span>
+        
+        <span class="reading-rail__tick" style="top: 97%"></span>
+        
+        <span class="reading-rail__tick" style="top: 98%"></span>
+        
+        <span class="reading-rail__tick" style="top: 99%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 100%"><b>100</b></span>
+        
+      </div>
+      <span class="reading-rail__cursor" aria-hidden="true"></span>
+    </div>
+  </div>
+  <div class="reading-rail__hint"><span data-ui-lang="zh-CN">拖动刻度跳转 · 点击章节定位</span><span data-ui-lang="en">Drag the ruler · Click a chapter</span></div>
+</nav>
+
+
+  </aside>
+  
+</article>
+
+  </main>
+  
+<footer class="site-footer">
+  <div class="site-footer__inner">
+    <span class="site-footer__mark" aria-hidden="true"><svg viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" fill="currentColor"><rect x="5" y="1" width="2" height="10"/><rect x="1" y="5" width="10" height="2"/><rect x="3" y="3" width="1" height="1"/><rect x="8" y="3" width="1" height="1"/><rect x="3" y="8" width="1" height="1"/><rect x="8" y="8" width="1" height="1"/></svg></span>
+    <span>© 2025–2026 DoubleYe</span>
+    <span class="site-footer__links">
+      
+      
+      <a href="https://hexo.io" target="_blank" rel="noopener"><span data-ui-lang="zh-CN">由 Hexo 驱动</span><span data-ui-lang="en">Powered by Hexo</span></a>
+    </span>
+  </div>
+</footer>
+
+  
+<script src="/js/language.js"></script>
+
+  
+<script src="/js/background.js"></script>
+
+  
+<script src="/js/theme.js"></script>
+
+  
+<script src="/js/reading-progress.js"></script>
+
+</body>
+</html>

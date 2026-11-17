@@ -1,0 +1,106 @@
+<svg style="--diagram-background:#222426;--diagram-text:#e6e4e0;--diagram-accent:#f3b958;--diagram-teal:#4bc292;--diagram-blue:#009dff;--diagram-purple:#8867a5;--diagram-orange:#f3b958" xmlns="http://www.w3.org/2000/svg" viewBox="0 125 1080 670" class="theme-diagram" data-theme-svg="1" role="img" aria-labelledby="oit-pages-title oit-pages-desc"><title id="oit-pages-title">逐像素片元页</title><desc id="oit-pages-desc">同一像素的五个透明片元存放在两个片元页中，每页四个槽。像素头指针指向 P1，P1 存一个片元并留有三个空槽，P0 存四个片元。独立页链接记录将 P1 指向 P0，P0 指向空；每个片元只包含颜色和深度，没有片元级 next 字段。这是静态存储示意，页中片元未按深度排序。</desc><style>
+.theme-diagram {
+  --d-bg: var(--diagram-background, #ffffff);
+  --d-ink: var(--diagram-text, #383838);
+  --d-accent: var(--diagram-accent, #2bbc8a);
+  --d-muted: color-mix(in srgb, var(--d-ink) 68%, var(--d-bg));
+  --d-border: color-mix(in srgb, var(--d-ink) 19%, var(--d-bg));
+  --d-surface: color-mix(in srgb, var(--d-ink) 3%, var(--d-bg));
+  --d-shadow: color-mix(in srgb, #000000 35%, var(--d-bg));
+  --d-teal: var(--diagram-teal, color-mix(in srgb, var(--d-accent) 76%, var(--d-ink)));
+  --d-blue: var(--diagram-blue, color-mix(in srgb, var(--d-accent) 28%, #6c91bc));
+  --d-purple: var(--diagram-purple, color-mix(in srgb, var(--d-accent) 15%, #a18ab9));
+  --d-orange: var(--diagram-orange, color-mix(in srgb, var(--d-accent) 10%, #d3a462));
+  font-family: var(--diagram-font, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif);
+}
+.theme-diagram text { font-family: inherit; }
+</style><defs><marker id="oit-pages-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10Z" fill="context-stroke"/></marker></defs>
+<rect x="0" y="0" width="1080" height="830" rx="0" fill="var(--d-bg)" stroke="var(--d-bg)" stroke-width="1.5"/>
+
+
+<path d="M45 325 L75 150 L130 310Z" fill="var(--d-blue)" fill-opacity="0.2" stroke="var(--d-blue)" stroke-width="2"/>
+<path d="M130 325 L160 159 L215 310Z" fill="var(--d-orange)" fill-opacity="0.2" stroke="var(--d-orange)" stroke-width="2"/>
+<path d="M215 325 L245 168 L300 310Z" fill="var(--d-purple)" fill-opacity="0.2" stroke="var(--d-purple)" stroke-width="2"/>
+<path d="M300 325 L330 177 L385 310Z" fill="var(--d-teal)" fill-opacity="0.2" stroke="var(--d-teal)" stroke-width="2"/>
+<path d="M385 325 L415 186 L470 310Z" fill="var(--d-blue)" fill-opacity="0.2" stroke="var(--d-blue)" stroke-width="2"/>
+<path d="M48 265 L606 265" fill="none" stroke="var(--d-muted)" stroke-width="2" marker-end="url(#oit-pages-arrow)" stroke-dasharray="6 5"/>
+<circle cx="80" cy="265" r="9" fill="var(--d-blue)" stroke="var(--d-bg)" stroke-width="2"/>
+
+<circle cx="165" cy="265" r="9" fill="var(--d-orange)" stroke="var(--d-bg)" stroke-width="2"/>
+
+<circle cx="250" cy="265" r="9" fill="var(--d-purple)" stroke="var(--d-bg)" stroke-width="2"/>
+
+<circle cx="335" cy="265" r="9" fill="var(--d-teal)" stroke="var(--d-bg)" stroke-width="2"/>
+
+<circle cx="420" cy="265" r="9" fill="var(--d-blue)" stroke="var(--d-bg)" stroke-width="2"/>
+
+
+<text x="414" y="222" fill="var(--d-ink)" font-size="20" font-weight="normal" text-anchor="start">片元</text>
+<rect x="610" y="205" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="650" y="205" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="690" y="205" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="730" y="205" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="610" y="245" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="650" y="245" width="40" height="40" rx="0" fill="var(--d-accent)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="690" y="245" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="730" y="245" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="610" y="285" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="650" y="285" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="690" y="285" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="730" y="285" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="610" y="325" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="650" y="325" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="690" y="325" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="730" y="325" width="40" height="40" rx="0" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<text x="630" y="188" fill="var(--d-ink)" font-size="22" font-weight="normal" text-anchor="start">像素网格</text>
+<text x="670" y="272" fill="var(--d-ink)" font-size="24" font-weight="600" text-anchor="middle">A</text>
+<path d="M770 265 L814 265" fill="none" stroke="var(--d-muted)" stroke-width="2" marker-end="url(#oit-pages-arrow)"/>
+<rect x="832" y="218" width="212" height="100" rx="8" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<text x="850" y="249" fill="var(--d-ink)" font-size="22" font-weight="600" text-anchor="start">像素 A</text>
+<text x="850" y="285" fill="var(--d-ink)" font-size="21" font-weight="normal" text-anchor="start">head</text>
+
+<path d="M937 320 L937 420 L261 420 L261 495" fill="none" stroke="var(--d-accent)" stroke-width="2" marker-end="url(#oit-pages-arrow)"/>
+<text x="36" y="470" fill="var(--d-ink)" font-size="24">片元页池</text>
+<rect x="36" y="500" width="450" height="150" rx="8" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<text x="54" y="530" fill="var(--d-ink)" font-size="22">P1</text>
+<rect x="52" y="546" width="100" height="84" rx="5" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="61" y="556" width="11" height="62" rx="3" fill="var(--d-blue)"/>
+<text x="80" y="573" fill="var(--d-muted)" font-size="15">颜色</text>
+<text x="80" y="603" fill="var(--d-ink)" font-size="18">深度</text>
+<rect x="158" y="546" width="100" height="84" rx="5" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="1.5"/>
+<text x="185" y="594" fill="var(--d-muted)" font-size="18">空槽</text>
+<rect x="264" y="546" width="100" height="84" rx="5" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="1.5"/>
+<text x="291" y="594" fill="var(--d-muted)" font-size="18">空槽</text>
+<rect x="370" y="546" width="100" height="84" rx="5" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="1.5"/>
+<text x="397" y="594" fill="var(--d-muted)" font-size="18">空槽</text>
+<rect x="566" y="500" width="450" height="150" rx="8" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<text x="584" y="530" fill="var(--d-ink)" font-size="22">P0</text>
+<rect x="582" y="546" width="100" height="84" rx="5" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="591" y="556" width="11" height="62" rx="3" fill="var(--d-blue)"/>
+<text x="610" y="573" fill="var(--d-muted)" font-size="15">颜色</text>
+<text x="610" y="603" fill="var(--d-ink)" font-size="18">深度</text>
+<rect x="688" y="546" width="100" height="84" rx="5" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="697" y="556" width="11" height="62" rx="3" fill="var(--d-orange)"/>
+<text x="716" y="573" fill="var(--d-muted)" font-size="15">颜色</text>
+<text x="716" y="603" fill="var(--d-ink)" font-size="18">深度</text>
+<rect x="794" y="546" width="100" height="84" rx="5" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="803" y="556" width="11" height="62" rx="3" fill="var(--d-purple)"/>
+<text x="822" y="573" fill="var(--d-muted)" font-size="15">颜色</text>
+<text x="822" y="603" fill="var(--d-ink)" font-size="18">深度</text>
+<rect x="900" y="546" width="100" height="84" rx="5" fill="var(--d-bg)" stroke="var(--d-border)" stroke-width="1.5"/>
+<rect x="909" y="556" width="11" height="62" rx="3" fill="var(--d-teal)"/>
+<text x="928" y="573" fill="var(--d-muted)" font-size="15">颜色</text>
+<text x="928" y="603" fill="var(--d-ink)" font-size="18">深度</text>
+<text x="36" y="692" fill="var(--d-ink)" font-size="24">页链接</text>
+<rect x="36" y="710" width="450" height="56" rx="8" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<text x="54" y="746" fill="var(--d-ink)" font-size="22">P1</text>
+<text x="128" y="746" fill="var(--d-muted)" font-size="20">next</text>
+<circle cx="450" cy="738" r="4" fill="var(--d-ink)"/>
+<rect x="566" y="710" width="450" height="56" rx="8" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.5"/>
+<text x="584" y="746" fill="var(--d-ink)" font-size="22">P0</text>
+<text x="658" y="746" fill="var(--d-muted)" font-size="20">next</text>
+<circle cx="980" cy="738" r="4" fill="var(--d-ink)"/>
+<path d="M456 738 L530 738 L530 575 L563 575" fill="none" stroke="var(--d-accent)" stroke-width="2" marker-end="url(#oit-pages-arrow)"/>
+<path d="M986 738 L1038 738" fill="none" stroke="var(--d-accent)" stroke-width="2" marker-end="url(#oit-pages-arrow)"/>
+<text x="1044" y="746" fill="var(--d-ink)" font-size="22">∅</text>
+</svg>

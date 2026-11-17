@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN" data-palette="green" data-palette-pref="auto" data-background="sky" data-mode="day" data-mode-pref="day">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>WebGPU · DoubleYe</title>
+  <meta name="description" content="游戏开发者">
+  <meta name="theme-color" content="#f0eee8">
+  <meta name="description" content="游戏开发者">
+<meta property="og:type" content="website">
+<meta property="og:title" content="DoubleYe">
+<meta property="og:url" content="https://frostyleaves.github.io/tags/WebGPU/index.html">
+<meta property="og:site_name" content="DoubleYe">
+<meta property="og:description" content="游戏开发者">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:author" content="DoubleYe">
+<meta name="twitter:card" content="summary">
+  
+    <link rel="icon" href="/images/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" sizes="192x192" href="/images/favicon-192x192.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+  
+  
+  
+<link rel="stylesheet" href="/css/fonts.css">
+
+  
+<link rel="stylesheet" href="/css/main.css">
+
+  <style id="palette-css">:root,:root[data-palette="blue"]{--accent:#009dff;--bg-1:#009dff;--bg-2:#1f4f77;--bg-3:#1c2628}
+.tone-blue{--tone:#009dff}
+:root[data-palette="green"]{--accent:#4bc292;--bg-1:#4bc292;--bg-2:#1f5e4a;--bg-3:#1c2628}
+.tone-green{--tone:#4bc292}
+:root[data-palette="gold"]{--accent:#f3b958;--bg-1:#f3b958;--bg-2:#7e5a1e;--bg-3:#1c2628}
+.tone-gold{--tone:#f3b958}
+:root[data-palette="red"]{--accent:#fe5f55;--bg-1:#fe5f55;--bg-2:#6e2a26;--bg-3:#1c2628}
+.tone-red{--tone:#fe5f55}</style>
+  <style id="language-css">:root[lang="zh-CN"] [data-ui-lang]:not([data-ui-lang="zh-CN"]){display:none}
+:root[lang="en"] [data-ui-lang]:not([data-ui-lang="en"]){display:none}</style>
+  <script>
+    (function () {
+      // Keep reader preferences when upgrading from the theme's former name.
+      function migrate(storage, names) {
+        names.forEach(function (name) {
+          var key = 'drift-' + name;
+          if (storage.getItem(key) !== null) return;
+          var previous = storage.getItem('doubleye-' + name);
+          if (previous !== null) storage.setItem(key, previous);
+        });
+      }
+      try { migrate(localStorage, ['palette', 'background', 'mode']); } catch (e) { /* storage may be blocked */ }
+      try { migrate(sessionStorage, ['bg-time']); } catch (e) { /* storage may be blocked */ }
+      var root = document.documentElement;
+      var languages = ["zh-CN","en"], language = null;
+      try { language = localStorage.getItem('drift-language'); } catch (e) { /* storage may be blocked */ }
+      root.lang = languages.indexOf(language) >= 0 ? language : "zh-CN";
+      var names = ["blue","green","gold","red"], auto = 'green', pref = null;
+      try { pref = localStorage.getItem('drift-palette'); } catch (e) { pref = null; }
+      if (names.indexOf(pref) < 0) pref = 'auto';
+      root.setAttribute('data-palette', pref === 'auto' ? auto : pref);
+      root.setAttribute('data-palette-pref', pref);
+      var scenes = ["sky","ocean"], scene = null, mode = null;
+      try { scene = localStorage.getItem('drift-background'); mode = localStorage.getItem('drift-mode'); } catch (e) { scene = null; mode = null; }
+      if (scenes.indexOf(scene) < 0) scene = 'sky';
+      if (mode !== 'auto' && mode !== 'day' && mode !== 'night') mode = 'day';
+      root.setAttribute('data-mode-pref', mode);
+      if (mode === 'auto') mode = window.matchMedia && !window.matchMedia('(prefers-color-scheme: dark)').matches ? 'day' : 'night';
+      root.setAttribute('data-background', scene);
+      root.setAttribute('data-mode', mode);
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute('content', mode === 'day' ? '#f0eee8' : '#191a1c');
+    })();
+    window.__THEME = {
+      palettes: {"blue":{"colors":["#009dff","#1f4f77","#1c2628"],"accent":"#009dff"},"green":{"colors":["#4bc292","#1f5e4a","#1c2628"],"accent":"#4bc292"},"gold":{"colors":["#f3b958","#7e5a1e","#1c2628"],"accent":"#f3b958"},"red":{"colors":["#fe5f55","#6e2a26","#1c2628"],"accent":"#fe5f55"}},
+      auto: 'green',
+      labels: {"auto":"自动","toggle":"切换配色","copy":"复制","copied":"已复制","sceneToggle":"切换背景","scenes":{"sky":"天空","ocean":"海洋"},"modeToggle":"切换日夜","modes":{"auto":"自动","day":"日间","night":"夜间"},"blue":"湖蓝","green":"青翠","gold":"琥珀","red":"绯红"},
+      background: {"enable":true,"style":"sky","styles":["sky","ocean"],"mode":"day","speed":1,"fps":30,"pixel_filter":740},
+      juice: {"tilt":true,"wobble":true,"foil":"pixel-glass","text":"titles"},
+      i18n: {"languages":["zh-CN","en"],"default":"zh-CN","dictionaries":{"zh-CN":{"nav.home":"首页","nav.posts":"文章","nav.categories":"分类","nav.tags":"标签","nav.archives":"归档","language.toggle":"切换语言","language.name":"中文","language.short":"中","pagination":"翻页","hero.posts":"篇文章","hero.categories":"个分类","hero.tags":"个标签","post.navigation":"文章导航","post.toc":"目录","post.reading_progress":"阅读进度","post.reading_hint":"拖动刻度跳转 · 点击章节定位","post.updated":"更新于","post.words":"字","post.minutes":"分钟","post.prev":"上一篇","post.next":"下一篇","post.license_prefix":"本文采用","post.license_suffix":"许可","post.copy":"复制","post.copied":"已复制","post.scroll_down":"向下滚动","post.tags":"标签","archive.title":"归档","archive.total_prefix":"共","archive.total_suffix":"篇","category.title":"分类","tag.title":"标签","footer.powered":"由 Hexo 驱动","palette.toggle":"切换配色","palette.auto":"自动","palette.blue":"湖蓝","palette.green":"青翠","palette.gold":"琥珀","palette.red":"绯红","background.toggle":"切换背景","background.sky":"天空","background.ocean":"海洋","mode.toggle":"切换日夜","mode.auto":"自动","mode.day":"日间","mode.night":"夜间","error404.title":"页面不存在","error404.description":"你访问的页面可能已被移动或删除。","error404.home":"返回首页","skip":"跳到正文"},"en":{"nav.home":"Home","nav.posts":"Posts","nav.categories":"Categories","nav.tags":"Tags","nav.archives":"Archives","language.toggle":"Language","language.name":"English","language.short":"EN","pagination":"Pagination","hero.posts":"posts","hero.categories":"categories","hero.tags":"tags","post.navigation":"Post navigation","post.toc":"Contents","post.reading_progress":"Reading progress","post.reading_hint":"Drag the ruler · Click a chapter","post.updated":"Updated","post.words":"words","post.minutes":"min","post.prev":"Newer","post.next":"Older","post.license_prefix":"Licensed under","post.license_suffix":"","post.copy":"Copy","post.copied":"Copied","post.scroll_down":"Scroll down","post.tags":"Tags","archive.title":"Archives","archive.total_prefix":"","archive.total_suffix":"posts","category.title":"Categories","tag.title":"Tags","footer.powered":"Powered by Hexo","palette.toggle":"Palette","palette.auto":"auto","palette.blue":"Lake","palette.green":"Jade","palette.gold":"Amber","palette.red":"Crimson","background.toggle":"Backdrop","background.sky":"Sky","background.ocean":"Ocean","mode.toggle":"Day / night","mode.auto":"Auto","mode.day":"Day","mode.night":"Night","error404.title":"Page not found","error404.description":"The page you are looking for may have been moved or removed.","error404.home":"Back to home","skip":"Skip to content"}}}
+    };
+  </script>
+<meta name="generator" content="Hexo 8.1.1"></head>
+
+
+<body class="juice-tilt juice-wobble juice-foil text-titles" data-card-effect="pixel-glass">
+  <a class="skip-link" href="#main"><span data-ui-lang="zh-CN">跳到正文</span><span data-ui-lang="en">Skip to content</span></a>
+  <div class="backdrop" id="backdrop" aria-hidden="true"><canvas class="backdrop__canvas" id="backdrop-canvas"></canvas><canvas class="backdrop__snapshot" id="backdrop-snapshot"></canvas></div>
+  
+<header class="site-header" id="site-header">
+  <div class="site-header__inner">
+    <a class="site-brand px" href="/" aria-label="DoubleYe"><span class="w"><span class="ch" style="--i:0" aria-hidden="true">D</span><span class="ch" style="--i:1" aria-hidden="true">o</span><span class="ch" style="--i:2" aria-hidden="true">u</span><span class="ch" style="--i:3" aria-hidden="true">b</span><span class="ch" style="--i:4" aria-hidden="true">l</span><span class="ch" style="--i:5" aria-hidden="true">e</span><span class="ch" style="--i:6" aria-hidden="true">Y</span><span class="ch" style="--i:7" aria-hidden="true">e</span></span></a>
+    <nav class="site-nav" data-i18n-aria-label="nav.home" aria-label="首页">
+      
+        <a class="btn btn--nav px" href="/archives/"><span data-ui-lang="zh-CN">文章</span><span data-ui-lang="en">Posts</span></a>
+      
+        <a class="btn btn--nav px" href="/categories/"><span data-ui-lang="zh-CN">分类</span><span data-ui-lang="en">Categories</span></a>
+      
+        <a class="btn btn--nav px" href="/tags/" aria-current="page"><span data-ui-lang="zh-CN">标签</span><span data-ui-lang="en">Tags</span></a>
+      
+        <a class="btn btn--nav px" href="/"><span data-ui-lang="zh-CN">首页</span><span data-ui-lang="en">Home</span></a>
+      
+      <div class="site-controls">
+      <button class="palette-toggle" id="palette-toggle" type="button" aria-label="切换配色: 自动 · 青翠" title="切换配色: 自动 · 青翠">
+        <span class="palette-toggle__disc" aria-hidden="true"></span>
+        <span class="palette-toggle__label px" id="palette-label"><span data-ui-lang="zh-CN">自动</span><span data-ui-lang="en">auto</span></span>
+      </button>
+      
+      <button class="scene-toggle" id="background-toggle" type="button" aria-label="切换背景" title="切换背景: 天空">
+        <span class="scene-toggle__icon" aria-hidden="true">
+          <svg class="scene-icon scene-icon--sky" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="2" y="0" width="1" height="5"/><rect x="0" y="2" width="5" height="1"/><rect x="1" y="1" width="1" height="1"/><rect x="3" y="1" width="1" height="1"/><rect x="1" y="3" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="6" y="5" width="4" height="1"/><rect x="5" y="6" width="6" height="1"/><rect x="4" y="7" width="8" height="1"/><rect x="3" y="8" width="9" height="2"/></svg>
+          <svg class="scene-icon scene-icon--ocean" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="1" y="2" width="3" height="1"/><rect x="6" y="2" width="3" height="1"/><rect x="0" y="3" width="1" height="1"/><rect x="4" y="3" width="2" height="1"/><rect x="9" y="3" width="2" height="1"/><rect x="1" y="6" width="3" height="1"/><rect x="6" y="6" width="3" height="1"/><rect x="0" y="7" width="1" height="1"/><rect x="4" y="7" width="2" height="1"/><rect x="9" y="7" width="2" height="1"/><rect x="1" y="10" width="3" height="1"/><rect x="6" y="10" width="3" height="1"/><rect x="0" y="11" width="1" height="1"/><rect x="4" y="11" width="2" height="1"/><rect x="9" y="11" width="2" height="1"/></svg>
+        </span>
+        <span class="scene-toggle__label px" id="background-label"><span data-ui-lang="zh-CN">天空</span><span data-ui-lang="en">Sky</span></span>
+      </button>
+      
+      <button class="scene-toggle mode-toggle" id="mode-toggle" type="button" aria-label="切换日夜" title="切换日夜: 日间">
+        <span class="scene-toggle__icon" aria-hidden="true">
+          <svg class="mode-icon mode-icon--auto" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="1" y="1" width="10" height="1"/><rect x="0" y="2" width="1" height="5"/><rect x="11" y="2" width="1" height="5"/><rect x="1" y="7" width="10" height="1"/><rect x="5" y="8" width="2" height="2"/><rect x="3" y="10" width="6" height="1"/></svg>
+          <svg class="mode-icon mode-icon--night" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="4" y="1" width="4" height="1"/><rect x="3" y="2" width="2" height="1"/><rect x="2" y="3" width="2" height="2"/><rect x="2" y="5" width="2" height="2"/><rect x="2" y="7" width="2" height="2"/><rect x="3" y="9" width="2" height="1"/><rect x="4" y="10" width="4" height="1"/><rect x="8" y="9" width="2" height="1"/><rect x="8" y="2" width="2" height="1"/></svg>
+          <svg class="mode-icon mode-icon--day" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="4" y="4" width="4" height="4"/><rect x="5" y="0" width="2" height="2"/><rect x="5" y="10" width="2" height="2"/><rect x="0" y="5" width="2" height="2"/><rect x="10" y="5" width="2" height="2"/><rect x="1" y="1" width="2" height="1"/><rect x="1" y="2" width="1" height="1"/><rect x="9" y="1" width="2" height="1"/><rect x="10" y="2" width="1" height="1"/><rect x="1" y="9" width="1" height="1"/><rect x="1" y="10" width="2" height="1"/><rect x="10" y="9" width="1" height="1"/><rect x="9" y="10" width="2" height="1"/></svg>
+        </span>
+        <span class="scene-toggle__label px" id="mode-label"><span data-ui-lang="zh-CN">日间</span><span data-ui-lang="en">Day</span></span>
+      </button>
+      
+      <button class="language-toggle px" id="language-toggle" type="button" title="切换语言" aria-label="切换语言"><span data-ui-lang="zh-CN">中</span><span data-ui-lang="en">EN</span></button>
+      
+      </div>
+    </nav>
+  </div>
+</header>
+
+  <main id="main" class="site-main">
+    
+<div class="container archive">
+  <header class="page-header">
+    <h1 class="px title-anim" aria-label="WebGPU"><span class="w"><span class="ch" style="--i:0" aria-hidden="true">W</span><span class="ch" style="--i:1" aria-hidden="true">e</span><span class="ch" style="--i:2" aria-hidden="true">b</span><span class="ch" style="--i:3" aria-hidden="true">G</span><span class="ch" style="--i:4" aria-hidden="true">P</span><span class="ch" style="--i:5" aria-hidden="true">U</span></span></h1>
+    <span class="badge badge--blue px"><span data-ui-lang="zh-CN">共</span><span data-ui-lang="en"></span> 1 <span data-ui-lang="zh-CN">篇</span><span data-ui-lang="en">posts</span></span>
+  </header>
+  
+  <section class="archive-year panel">
+    <h2 class="archive-year__title px">2026</h2>
+    <ul class="archive-list">
+      
+      <li class="archive-item">
+        <time class="px" datetime="2026-11-17T00:00:00.000Z">11-17</time>
+        <a href="/2026/11/17/rendering-digest-2026-11-17/">透明度混合OIT介绍</a>
+      </li>
+      
+    </ul>
+  </section>
+  
+  
+
+</div>
+
+
+  </main>
+  
+<footer class="site-footer">
+  <div class="site-footer__inner">
+    <span class="site-footer__mark" aria-hidden="true"><svg viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" fill="currentColor"><rect x="5" y="1" width="2" height="10"/><rect x="1" y="5" width="10" height="2"/><rect x="3" y="3" width="1" height="1"/><rect x="8" y="3" width="1" height="1"/><rect x="3" y="8" width="1" height="1"/><rect x="8" y="8" width="1" height="1"/></svg></span>
+    <span>© 2025–2026 DoubleYe</span>
+    <span class="site-footer__links">
+      
+      
+      <a href="https://hexo.io" target="_blank" rel="noopener"><span data-ui-lang="zh-CN">由 Hexo 驱动</span><span data-ui-lang="en">Powered by Hexo</span></a>
+    </span>
+  </div>
+</footer>
+
+  
+<script src="/js/language.js"></script>
+
+  
+<script src="/js/background.js"></script>
+
+  
+<script src="/js/theme.js"></script>
+
+  
+</body>
+</html>
