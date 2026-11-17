@@ -8,12 +8,12 @@
   <title>Nsight Graphics MCP 试用体验 · DoubleYe</title>
   
   <meta name="theme-color" content="#f0eee8">
-  <meta name="description" content="Nsight Graphics 2026.4 新增了 MCP Server，AI agent 可以通过它采集 GPU Trace、读取 Graphics Capture，并查询性能数据。对已有自动化分析流程来说，它提供了一个统一的数据入口，可以减少手动操作 GUI、导出报表和解析文件的工作。 我用 2026.4.0 做了一轮试用，重点看它能否按 pass 取指标、定位 shader 热点，以及检查">
+  <meta name="description" content="Nsight Graphics 2026.4 新增了 MCP Server，AI agent 可以直接调用 Nsight 的采集和查询接口，读取 GPU Trace、Graphics Capture 和 Aftermath 崩溃 dump。 我试用了 2026.4.0，测试环境是 RTX 4070 Ti 和 Vulkan。测试对象包括几个瓶颈已知的小程序、已有项目的 capture，以及 Unit">
 <meta property="og:type" content="article">
 <meta property="og:title" content="Nsight Graphics MCP 试用体验">
 <meta property="og:url" content="https://frostyleaves.github.io/2026/11/15/rendering-digest-2026-11-15/index.html">
 <meta property="og:site_name" content="DoubleYe">
-<meta property="og:description" content="Nsight Graphics 2026.4 新增了 MCP Server，AI agent 可以通过它采集 GPU Trace、读取 Graphics Capture，并查询性能数据。对已有自动化分析流程来说，它提供了一个统一的数据入口，可以减少手动操作 GUI、导出报表和解析文件的工作。 我用 2026.4.0 做了一轮试用，重点看它能否按 pass 取指标、定位 shader 热点，以及检查">
+<meta property="og:description" content="Nsight Graphics 2026.4 新增了 MCP Server，AI agent 可以直接调用 Nsight 的采集和查询接口，读取 GPU Trace、Graphics Capture 和 Aftermath 崩溃 dump。 我试用了 2026.4.0，测试环境是 RTX 4070 Ti 和 Vulkan。测试对象包括几个瓶颈已知的小程序、已有项目的 capture，以及 Unit">
 <meta property="og:locale" content="zh_CN">
 <meta property="article:published_time" content="2026-11-15T00:00:00.000Z">
 <meta property="article:modified_time" content="2026-11-15T00:00:00.000Z">
@@ -151,8 +151,8 @@
   
     <a class="seal tone-green px" href="/categories/%E6%AF%8F%E6%97%A5%E6%8E%A8%E8%8D%90/"><span class="seal__dot" aria-hidden="true"></span>每日推荐</a>
   
-  <span class="badge badge--blue px post-meta__words">2,194 <span data-ui-lang="zh-CN">字</span><span data-ui-lang="en">words</span></span>
-  <span class="badge badge--red px">6 <span data-ui-lang="zh-CN">分钟</span><span data-ui-lang="en">min</span></span>
+  <span class="badge badge--blue px post-meta__words">1,838 <span data-ui-lang="zh-CN">字</span><span data-ui-lang="en">words</span></span>
+  <span class="badge badge--red px">5 <span data-ui-lang="zh-CN">分钟</span><span data-ui-lang="en">min</span></span>
   
 </div>
 
@@ -165,7 +165,7 @@
 
 <nav class="toc panel" data-i18n-aria-label="post.toc" aria-label="目录">
   <div class="toc__title px"><span data-ui-lang="zh-CN">目录</span><span data-ui-lang="en">Contents</span></div>
-  <ol class="toc-list"><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E4%B8%A4%E7%A7%8D%E6%8E%A5%E5%8F%A3%E6%A8%A1%E5%BC%8F"><span class="toc-list-text">两种接口模式</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E4%BB%8E-pass-%E6%9F%A5%E5%88%B0%E6%BA%90%E7%A0%81"><span class="toc-list-text">从 pass 查到源码</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E7%8A%B6%E6%80%81%E6%A3%80%E6%9F%A5%E5%92%8C%E9%87%8D%E6%94%BE%E8%AE%A1%E6%97%B6"><span class="toc-list-text">状态检查和重放计时</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E6%95%B0%E6%8D%AE%E4%BB%8D%E9%9C%80%E8%A6%81%E5%88%86%E6%9E%90%E6%96%B9%E6%B3%95"><span class="toc-list-text">数据仍需要分析方法</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E7%9B%AE%E5%89%8D%E4%BB%8D%E7%BC%BA%E5%B0%91%E7%9A%84%E7%8E%AF%E8%8A%82"><span class="toc-list-text">目前仍缺少的环节</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E6%8E%A5%E5%85%A5%E4%B8%8E%E4%BD%BF%E7%94%A8%E5%BB%BA%E8%AE%AE"><span class="toc-list-text">接入与使用建议</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="toc-list-text">参考资料</span></a></li></ol>
+  <ol class="toc-list"><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#Workflow-%E4%B8%8E-Native"><span class="toc-list-text">Workflow 与 Native</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E9%87%87%E9%9B%86%E5%92%8C-GPU-Trace-%E6%9F%A5%E8%AF%A2"><span class="toc-list-text">采集和 GPU Trace 查询</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#Graphics-Capture-%E6%A3%80%E6%9F%A5"><span class="toc-list-text">Graphics Capture 检查</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%BD%93%E5%89%8D%E7%9A%84%E5%8A%9F%E8%83%BD%E7%BC%BA%E5%8F%A3"><span class="toc-list-text">当前的功能缺口</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E6%8E%A5%E5%85%A5%E6%96%B9%E5%BC%8F"><span class="toc-list-text">接入方式</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E6%88%91%E7%9A%84%E4%BD%BF%E7%94%A8%E5%80%BE%E5%90%91"><span class="toc-list-text">我的使用倾向</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="toc-list-text">参考资料</span></a></li></ol>
 </nav>
 
 
@@ -174,82 +174,111 @@
 
     <div class="post-body panel">
       <div class="post-content" id="drift-post-content" itemprop="articleBody" lang="zh-CN">
-        <p>Nsight Graphics 2026.4 新增了 MCP Server，AI agent 可以通过它采集 GPU Trace、读取 Graphics Capture，并查询性能数据。对已有自动化分析流程来说，它提供了一个统一的数据入口，可以减少手动操作 GUI、导出报表和解析文件的工作。</p>
-<p>我用 2026.4.0 做了一轮试用，重点看它能否按 pass 取指标、定位 shader 热点，以及检查 draw 的状态。下面结合官方文档与这次试用记录，介绍两种接口模式和目前的限制。本文补入 11 月 15 日的每日推荐，内容于 11 月 17 日整理。</p>
+        <p>Nsight Graphics 2026.4 新增了 MCP Server，AI agent 可以直接调用 Nsight 的采集和查询接口，读取 GPU Trace、Graphics Capture 和 Aftermath 崩溃 dump。</p>
+<p>我试用了 2026.4.0，测试环境是 RTX 4070 Ti 和 Vulkan。测试对象包括几个瓶颈已知的小程序、已有项目的 capture，以及 Unity 的 GPU Trace。最明显的区别是两种接口模式提供的数据范围：Workflow 适合快速浏览，Native 才能覆盖按 pass 查询、源码热点和图形状态检查这些日常操作。</p>
 <span id="more"></span>
 
-<h2 id="两种接口模式"><a href="#两种接口模式" class="headerlink" title="两种接口模式"></a>两种接口模式</h2><p>官方将 MCP Server 标为 Alpha，2026.4 先在 Windows 提供。默认的 <strong>Workflow</strong> 面向常见任务，接口较少；<strong>Native</strong> 提供更细的检查和自动化能力，仍处于实验阶段。<a target="_blank" rel="noopener" href="https://developer.nvidia.com/nsight-graphics/getting-started/release-note-v2026.4">2026.4 更新说明</a></p>
-<p>试用中的差别主要在数据粒度。Workflow 把帧、marker、指标和 draw 等整理成统一的表，适合查询整体信息。Native 则可以选择具体 marker 实例或时间范围，继续查询指标、shader 和图形状态。</p>
-<p>例如，整段 trace 的平均吞吐无法直接回答某个阴影 pass 的瓶颈。需要先选中该 pass 的时间范围，再读取对应的 SM、L2、DRAM 等指标，减少整段平均值对局部瓶颈的掩盖。Native 在这一步提供了更合适的接口。</p>
-<p>以下是本次 2026.4.0 试用观察：</p>
+<h2 id="Workflow-与-Native"><a href="#Workflow-与-Native" class="headerlink" title="Workflow 与 Native"></a>Workflow 与 Native</h2><p>默认的 <strong>Workflow</strong> 将帧、marker、指标、draw 和资源等整理成统一的表，agent 用类似 SQL 的方式查询。<strong>Native</strong> 暴露更多细粒度操作，可以选择 GPU Trace 中的 marker 或时间范围，也能检查 Graphics Capture 中的具体 draw 和资源。</p>
+<p>官方将 MCP Server 标为 Alpha，2026.4 先在 Windows 提供；Native 的接口仍具有实验性质。<a target="_blank" rel="noopener" href="https://developer.nvidia.com/nsight-graphics/getting-started/release-note-v2026.4">2026.4 更新说明</a></p>
+<p>下面按这次试用记录列出两种模式的能力。标为“未实测”的项目仅确认了接口能力，尚未验证实际效果。</p>
 <div class="table-wrap"><table>
 <thead>
 <tr>
-<th>操作</th>
+<th>能力</th>
 <th>Workflow</th>
 <th>Native</th>
 </tr>
 </thead>
 <tbody><tr>
-<td>控制采集起点与帧数</td>
-<td>本次接口只能立即采一帧</td>
-<td>可按帧或时间触发，并指定帧数</td>
+<td>按指定帧或时间开始采集，并设置采集帧数</td>
+<td>本次只能立即采一帧</td>
+<td>支持</td>
 </tr>
 <tr>
-<td>查询 pass 对应的硬件指标</td>
-<td>只能取得整段 trace 的汇总值</td>
-<td>可按 marker 实例或时间范围查询</td>
+<td>选择 Top-Level Triage、Throughput Metrics 等指标集</td>
+<td>本次接口不支持</td>
+<td>支持，也可开启 Shader Profiler</td>
 </tr>
 <tr>
-<td>检查 shader 热点</td>
-<td>依赖已有 trace 包含 Shader Profiler 数据</td>
-<td>可进一步缩小到热点 pass，并查询源码位置</td>
+<td>读取 SM、L2、DRAM 等吞吐指标</td>
+<td>整段 trace 的平均值</td>
+<td>支持，也可查询指定范围</td>
 </tr>
 <tr>
-<td>检查 draw 参数与 pipeline</td>
-<td>部分信息缺失，观察到实例数漏计</td>
-<td>可读到实例数、深度附件、viewport 等状态</td>
+<td>读取某个 pass 或 marker 的硬件指标</td>
+<td>本次无法按 pass 拆分</td>
+<td>可选择 marker 实例或时间范围</td>
 </tr>
 <tr>
-<td>检查资源</td>
-<td>本次查询的资源信息为空</td>
-<td>可检查纹理、buffer 及其描述</td>
+<td>读取各 pass 的 GPU 耗时</td>
+<td>支持</td>
+<td>支持</td>
 </tr>
 <tr>
-<td>对 draw 做 replay 计时</td>
-<td>本次未取得</td>
-<td>已取得逐 draw 耗时</td>
+<td>查询热点 shader 和 stall 原因</td>
+<td>仅整段 trace，且采集时需要启用 Shader Profiler</td>
+<td>可限定到 pass，并关联源码行</td>
+</tr>
+<tr>
+<td>打开其他人用 GUI 采集的 trace</td>
+<td>支持</td>
+<td>支持</td>
+</tr>
+<tr>
+<td>查看 draw 的顶点数、实例数等参数</td>
+<td>信息不完整，本次观察到实例数漏计</td>
+<td>本次测试参数读取完整</td>
+</tr>
+<tr>
+<td>查看 blend、深度附件、viewport 和绑定 shader</td>
+<td>本次接口不支持</td>
+<td>支持</td>
+</tr>
+<tr>
+<td>查看纹理、buffer 内容及资源格式和大小</td>
+<td>本次查询返回空值</td>
+<td>支持</td>
+</tr>
+<tr>
+<td>通过 replay 获取逐 draw 的 GPU 耗时</td>
+<td>本次接口不支持</td>
+<td>支持</td>
+</tr>
+<tr>
+<td>替换 shader 后重放</td>
+<td>本次接口不支持</td>
+<td>有此能力，未实测</td>
+</tr>
+<tr>
+<td>分析 Aftermath GPU 崩溃 dump</td>
+<td>支持</td>
+<td>支持</td>
 </tr>
 </tbody></table></div>
-<p>因此，我暂时会把 Workflow 用于快速浏览，正式定位优先使用 Native。尤其是实例数和资源信息，不能因为接口返回了结果，就默认它完整可靠。</p>
-<h2 id="从-pass-查到源码"><a href="#从-pass-查到源码" class="headerlink" title="从 pass 查到源码"></a>从 pass 查到源码</h2><p>这次测试使用 RTX 4070 Ti、Vulkan 和瓶颈已知的小程序，覆盖 SSBO 带宽、分支发散、低占用延迟以及 early-Z &#x2F; late-Z。小程序便于检查返回的数据是否符合预期，也减少了真实项目中多个问题相互影响的情况。</p>
-<p>在分支发散用例中，Native 对应 marker 的“每条指令平均活跃线程数”为 <strong>4.04</strong>，SM 吞吐为 <strong>89.5%</strong>。已有分析工具读取的结果分别为 <strong>4.03</strong> 和 <strong>88.4%</strong>，两条读取路径得到的数值接近。结合已知的测试逻辑，较低的活跃线程数支持了线程利用不足的判断。</p>
-<p>接着通过 Shader Profiler，查询定位到了 switch 分支对应的源码行。这样，分析流程就能从耗时 pass 继续走到具体 shader 和源码位置，再由开发者检查实现。</p>
-<p>记录中还有一个容易误读的数值：<strong>Not Selected 占 68%</strong>。NVIDIA 对它的定义是 warp 已具备发射条件，但调度器选择了另一个 warp。单看这个比例不能证明分支发散，也不能直接当作可消除的等待时间。这里判断发散的依据应保留在测试逻辑、活跃线程数和源码分支上。<a target="_blank" rel="noopener" href="https://docs.nvidia.com/nsight-graphics/UserGuide/shader-profiler.html">Shader Profiler 指标说明</a></p>
-<p>源码关联也取决于采集数据是否包含相应信息。没有源码或行号数据时，MCP 无法补出它们。</p>
-<h2 id="状态检查和重放计时"><a href="#状态检查和重放计时" class="headerlink" title="状态检查和重放计时"></a>状态检查和重放计时</h2><p>early-Z &#x2F; late-Z 用例验证了另一条路径：先检查 draw 是否按预期提交，再比较其执行时间。</p>
-<p>Native 返回了 16 个实例、D32 深度附件和 2560 × 1440 viewport，与测试设置一致。Replay 计时中，early-Z 用例的 draw 为 <strong>0.21 ms</strong>，写入 <code>gl_FragDepth</code> 的 late-Z 用例为 <strong>3.83 ms</strong>。这组结果描述的是本次测试程序中的两个 draw，不能推广为所有深度写入 shader 的固定代价。</p>
-<p>状态和计时要一起看。只看较慢的 draw，无法排除实例数、深度状态或其他 pipeline 配置有误；先核对这些条件，再回到 shader 和指标，比较才有明确对象。</p>
-<p>本次还验证了延迟采集：从启动程序、等待第 120 帧、采集 5 帧到写出文件，一次调用约需 5～7 秒。这是整个操作的耗时，包含等待应用运行的时间，不能当作 MCP 请求延迟。</p>
-<h2 id="数据仍需要分析方法"><a href="#数据仍需要分析方法" class="headerlink" title="数据仍需要分析方法"></a>数据仍需要分析方法</h2><p>MCP 能返回计数器和状态，如何解释它们仍由分析流程负责。我的使用顺序会是先看 GPU 时间线是否存在空闲，再找耗时 pass，随后读取对应范围的吞吐、占用率和 stall，最后检查 shader 与 pipeline。</p>
-<p>这些数据之间需要相互印证。吞吐较低可能与执行间隙、采样范围或依赖等待有关；某个 stall 比例高，也不代表消除它就能获得等比例加速。分析报告应保留所选时间范围、指标名称和关联 draw，让结论能够被复查。</p>
-<p>试用记录还出现过硬件 draw 统计与目标程序 API 调用不一致的情况，并观察到吞吐结果波动。我会将这种样本标为待排查，检查后台 GPU 工作、上下文切换和采样范围，必要时重新采集。</p>
-<p>官方说明，GPU Trace 中切换到其他进程上下文的区间可能没有采样数据；具体指标如何归属，需要结合采集模式和时间线判断。<a target="_blank" rel="noopener" href="https://docs.nvidia.com/nsight-graphics/UserGuide/gpu-trace-ui.html">GPU Trace UI 说明</a></p>
-<h2 id="目前仍缺少的环节"><a href="#目前仍缺少的环节" class="headerlink" title="目前仍缺少的环节"></a>目前仍缺少的环节</h2><p>本次 Native 工具目录中没有找到 Range Profiler、Pixel History 和 Shader Debugger 对应接口。逐 draw replay 可以帮助找出慢 draw，但还不能据此取得单个 draw 的完整硬件计数器；像素历史和单步调试仍需使用其他工具路径。这里说的是本次 MCP 暴露的能力，不代表 Nsight Graphics GUI 没有这些功能。</p>
-<p>批量查询也比较繁琐。本次接口按“一个指标、一个时间范围”返回结果，查询 10 个 pass 的 7 项指标需要组织 70 次调用。跨帧平均、异常样本排除和 A&#x2F;B 对比也要由外层程序完成。实际接入时，适合让脚本负责批量查询与统计，只把关键结果和证据交给 agent，避免在对话里反复搬运整表数据。</p>
-<p>Shader 替换后的重放、远程测试机、D3D12 和真实游戏的 live 采集都还没有完成验证。记录中的既有项目 capture 和 Unity trace 分析，也不能替代这些场景的实测。</p>
-<h2 id="接入与使用建议"><a href="#接入与使用建议" class="headerlink" title="接入与使用建议"></a>接入与使用建议</h2><p>Windows 安装包中的 <code>ngfx-mcp.exe</code> 位于 <code>host/windows-desktop-nomad-x64</code>。默认启动后，兼容客户端可通过 Streamable HTTP 连接 <code>http://127.0.0.1:7661/mcp</code>；Native 的官方配置方式是让客户端启动该程序，并传入：</p>
+<h2 id="采集和-GPU-Trace-查询"><a href="#采集和-GPU-Trace-查询" class="headerlink" title="采集和 GPU Trace 查询"></a>采集和 GPU Trace 查询</h2><p>Native 可以指定采集开始的帧或时间、采集帧数和指标集。本次让它启动测试程序，等待第 120 帧，再采集 5 帧并写出文件，整个操作约需 5～7 秒。这段时间包含程序运行和等待，反映的是这次采集任务的总耗时。</p>
+<p>拿到 trace 后，可以读取各 pass 的 GPU 时间，并按 marker 实例或时间范围查询吞吐、占用率和缓存命中等指标。Shader Profiler 也可以限定到某个 pass，返回热点 shader、stall 原因和关联源码行。本次测试已通过接口定位到测试 shader 中的具体分支位置，无需再手动进入 GUI 查找。</p>
+<p>已有 trace 同样可以打开，包括通过 GUI 采集、由其他人提供的文件。Workflow 也支持读取这类 trace 和各 pass 的耗时，但本次无法把硬件指标按 pass 拆开，shader 查询范围也限于整段 trace。</p>
+<h2 id="Graphics-Capture-检查"><a href="#Graphics-Capture-检查" class="headerlink" title="Graphics Capture 检查"></a>Graphics Capture 检查</h2><p>Native 能读取 draw 参数，以及 blend、深度附件格式、viewport、绑定 shader 等 pipeline 状态。纹理和 buffer 既可以查看格式与大小，也可以读取内容。</p>
+<p>本次用一个已知设置的 draw 检查返回结果，得到的 16 个实例、D32 深度附件和 2560 × 1440 viewport 均与程序配置一致。Workflow 在相同类型的检查中存在实例数漏计和资源字段为空的问题，因此我暂时不会依赖它完成 capture 的详细检查。</p>
+<p>Native 还可以重放 capture，取得每个 draw 的 GPU 耗时。工具提供了替换 shader 后重放的能力，但这部分本次没有实测，暂时不能评价其兼容性或修改效果的验证流程。</p>
+<p>Aftermath GPU 崩溃 dump 也在两种模式的能力范围内。本文的具体试用主要集中在 GPU Trace 和 Graphics Capture，没有展开崩溃 dump 的案例。</p>
+<h2 id="当前的功能缺口"><a href="#当前的功能缺口" class="headerlink" title="当前的功能缺口"></a>当前的功能缺口</h2><p><strong>逐 draw 的硬件计数器还没有开放。</strong> 本次 Native 工具目录中没有找到 Range Profiler 接口。GPU Trace 提供的是时间范围内的采样指标，replay 提供逐 draw 耗时，两者不能替代单个 draw 的吞吐、缓存命中率等计数器。</p>
+<p><strong>Pixel History 和 Shader Debugger 也未出现在本次工具目录中。</strong> 像素历史与 shader 单步调试尚不能通过这些 MCP 接口完成，需要回到 GUI 或其他工具。Shader Profiler 的源码热点查询与 Shader Debugger 是两项不同的能力。</p>
+<p><strong>批量查询和聚合仍需外层处理。</strong> 本次指标接口按一个指标、一个时间范围查询，10 个 pass 的 7 项指标需要组织 70 次调用。跨帧平均和多次采集的 A&#x2F;B 对比也需要自行汇总；这些操作还没有形成方便的批量接口。</p>
+<p><strong>没有自动诊断和异常样本筛选。</strong> MCP 返回指标与状态，本次没有提供瓶颈判定、外部 GPU 负载提示或受干扰帧剔除功能。这些能力仍要由使用它的 agent 或分析工具补充。</p>
+<p>Workflow 还需要补齐采集范围控制、draw 与 shader 的对应关系和资源信息，并修正本次遇到的实例数问题。相较之下，Native 已能承担更多实际查询工作，但接口升级后的兼容性仍需留意。</p>
+<h2 id="接入方式"><a href="#接入方式" class="headerlink" title="接入方式"></a>接入方式</h2><p>Windows 安装包中的 <code>ngfx-mcp.exe</code> 位于 <code>host/windows-desktop-nomad-x64</code>。默认启动后，兼容客户端通过 Streamable HTTP 连接 <code>http://127.0.0.1:7661/mcp</code>。</p>
+<p>Native 的官方配置方式是让 MCP 客户端启动该程序，并传入：</p>
 <figure class="highlight text" data-lang="text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">--profile native --transport stdio</span><br></pre></td></tr></table></figure>
 
-<p>两种模式的工具名称和会话行为不同。接入时先读取当前工具清单，再选择调用方式，不能只切换传输协议。官方目前要求 agent 和服务端运行在同一台 Windows 机器上；本次尚未验证 Claude Code 的直接接入。<a target="_blank" rel="noopener" href="https://docs.nvidia.com/nsight-graphics/UserGuide/automation.html">MCP 接入说明</a></p>
-<p>我的结论是，<strong>Native 已经值得作为日常性能分析的数据接口试用</strong>。它最有价值的部分，是把按范围查询指标、源码热点和 pipeline 检查连接到同一条自动化流程中。已有分析工具可以保留瓶颈判定和样本检查逻辑，逐步替换采集与数据读取部分，不必一次重写全部流程。</p>
-<p>接入后仍应保存原始 capture、固定 Nsight 版本，并用已知用例检查关键字段。接口升级、字段缺失或采样异常都可能影响最终判断；一次能够顺利调用，不等于已经完成可靠性验证。</p>
+<p>Native 使用渐进式工具发现，两种模式的工具名称和会话行为不同，需要按所选模式配置客户端。官方目前要求 agent 与服务端运行在同一台 Windows 机器上。<a target="_blank" rel="noopener" href="https://docs.nvidia.com/nsight-graphics/UserGuide/automation.html">MCP 接入说明</a></p>
+<p>本次尚未验证 Claude Code 的直接接入，也没有完成远程测试机、D3D12 和真实游戏 live 采集测试。</p>
+<h2 id="我的使用倾向"><a href="#我的使用倾向" class="headerlink" title="我的使用倾向"></a>我的使用倾向</h2><p>目前我会优先接入 Native，用它完成采集控制、pass 指标查询、源码级 shader 热点、pipeline 和资源检查，以及外部 trace 的读取。Workflow 的采集限制和 capture 数据缺失，使它更适合快速浏览，暂时不适合承担日常的详细检查。</p>
+<p>对已有的 nsight-graphics-analyzer，Native 最值得补进来的能力是源码级热点、较完整的图形状态与资源检查，以及读取外部 trace。原有的判定和统计逻辑可以继续保留。后续更期待批量指标查询、逐 draw 计数器和调试接口，让这些能力也能直接接入自动化工具。</p>
 <h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
 <li><a target="_blank" rel="noopener" href="https://developer.nvidia.com/nsight-graphics/getting-started/release-note-v2026.4">Nsight Graphics 2026.4 更新说明</a></li>
 <li><a target="_blank" rel="noopener" href="https://docs.nvidia.com/nsight-graphics/UserGuide/automation.html">Graphics Capture Automation 与 MCP Preview</a></li>
-<li><a target="_blank" rel="noopener" href="https://docs.nvidia.com/nsight-graphics/UserGuide/shader-profiler.html">Shader Profiler</a></li>
-<li><a target="_blank" rel="noopener" href="https://docs.nvidia.com/nsight-graphics/UserGuide/gpu-trace-ui.html">GPU Trace UI Reference</a></li>
-<li>本文实测部分整理自个人的 Nsight Graphics 2026.4.0 试用记录；官方文档用于说明功能范围与指标定义。</li>
+<li>本文能力对照和试用观察整理自个人的 Nsight Graphics 2026.4.0 试用记录。</li>
 </ul>
 
       </div>
@@ -318,7 +347,7 @@
     <span class="reading-rail__percent" data-reading-percent aria-hidden="true">000%</span>
   </div>
   <div class="reading-rail__stage">
-    <div class="reading-rail__chapters"><ol class="toc-list"><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E4%B8%A4%E7%A7%8D%E6%8E%A5%E5%8F%A3%E6%A8%A1%E5%BC%8F"><span class="toc-list-text">两种接口模式</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E4%BB%8E-pass-%E6%9F%A5%E5%88%B0%E6%BA%90%E7%A0%81"><span class="toc-list-text">从 pass 查到源码</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E7%8A%B6%E6%80%81%E6%A3%80%E6%9F%A5%E5%92%8C%E9%87%8D%E6%94%BE%E8%AE%A1%E6%97%B6"><span class="toc-list-text">状态检查和重放计时</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E6%95%B0%E6%8D%AE%E4%BB%8D%E9%9C%80%E8%A6%81%E5%88%86%E6%9E%90%E6%96%B9%E6%B3%95"><span class="toc-list-text">数据仍需要分析方法</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E7%9B%AE%E5%89%8D%E4%BB%8D%E7%BC%BA%E5%B0%91%E7%9A%84%E7%8E%AF%E8%8A%82"><span class="toc-list-text">目前仍缺少的环节</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E6%8E%A5%E5%85%A5%E4%B8%8E%E4%BD%BF%E7%94%A8%E5%BB%BA%E8%AE%AE"><span class="toc-list-text">接入与使用建议</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="toc-list-text">参考资料</span></a></li></ol></div>
+    <div class="reading-rail__chapters"><ol class="toc-list"><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#Workflow-%E4%B8%8E-Native"><span class="toc-list-text">Workflow 与 Native</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E9%87%87%E9%9B%86%E5%92%8C-GPU-Trace-%E6%9F%A5%E8%AF%A2"><span class="toc-list-text">采集和 GPU Trace 查询</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#Graphics-Capture-%E6%A3%80%E6%9F%A5"><span class="toc-list-text">Graphics Capture 检查</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%BD%93%E5%89%8D%E7%9A%84%E5%8A%9F%E8%83%BD%E7%BC%BA%E5%8F%A3"><span class="toc-list-text">当前的功能缺口</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E6%8E%A5%E5%85%A5%E6%96%B9%E5%BC%8F"><span class="toc-list-text">接入方式</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E6%88%91%E7%9A%84%E4%BD%BF%E7%94%A8%E5%80%BE%E5%90%91"><span class="toc-list-text">我的使用倾向</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="toc-list-text">参考资料</span></a></li></ol></div>
     <div class="reading-rail__ruler" role="scrollbar" tabindex="0" aria-controls="drift-post-content" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-i18n-aria-label="post.reading_progress" aria-label="阅读进度">
       <div class="reading-rail__ticks" aria-hidden="true">
         
