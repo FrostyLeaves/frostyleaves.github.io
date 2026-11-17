@@ -8,12 +8,12 @@
   <title>Nsight Graphics MCP 试用体验 · DoubleYe</title>
   
   <meta name="theme-color" content="#f0eee8">
-  <meta name="description" content="Nsight Graphics 2026.4 新增了 MCP Server，AI agent 可以直接调用 Nsight 的采集和查询接口，读取 GPU Trace、Graphics Capture 和 Aftermath 崩溃 dump。 我试用了 2026.4.0，测试环境是 RTX 4070 Ti 和 Vulkan。测试对象包括几个瓶颈已知的小程序、已有项目的 capture，以及 Unit">
+  <meta name="description" content="Nsight Graphics 2026.4 新增了 MCP Server，AI agent 可以直接调用 Nsight 的采集和查询接口，读取 GPU Trace、Graphics Capture 和 Aftermath 崩溃 dump。 本次试用的是 Nsight Graphics 2026.4.0，测试环境是 RTX 4070 Ti 和 Vulkan。测试对象包括几个瓶颈已知的小程序、已有项">
 <meta property="og:type" content="article">
 <meta property="og:title" content="Nsight Graphics MCP 试用体验">
 <meta property="og:url" content="https://frostyleaves.github.io/2026/11/15/rendering-digest-2026-11-15/index.html">
 <meta property="og:site_name" content="DoubleYe">
-<meta property="og:description" content="Nsight Graphics 2026.4 新增了 MCP Server，AI agent 可以直接调用 Nsight 的采集和查询接口，读取 GPU Trace、Graphics Capture 和 Aftermath 崩溃 dump。 我试用了 2026.4.0，测试环境是 RTX 4070 Ti 和 Vulkan。测试对象包括几个瓶颈已知的小程序、已有项目的 capture，以及 Unit">
+<meta property="og:description" content="Nsight Graphics 2026.4 新增了 MCP Server，AI agent 可以直接调用 Nsight 的采集和查询接口，读取 GPU Trace、Graphics Capture 和 Aftermath 崩溃 dump。 本次试用的是 Nsight Graphics 2026.4.0，测试环境是 RTX 4070 Ti 和 Vulkan。测试对象包括几个瓶颈已知的小程序、已有项">
 <meta property="og:locale" content="zh_CN">
 <meta property="article:published_time" content="2026-11-15T00:00:00.000Z">
 <meta property="article:modified_time" content="2026-11-15T00:00:00.000Z">
@@ -151,7 +151,7 @@
   
     <a class="seal tone-green px" href="/categories/%E6%AF%8F%E6%97%A5%E6%8E%A8%E8%8D%90/"><span class="seal__dot" aria-hidden="true"></span>每日推荐</a>
   
-  <span class="badge badge--blue px post-meta__words">1,838 <span data-ui-lang="zh-CN">字</span><span data-ui-lang="en">words</span></span>
+  <span class="badge badge--blue px post-meta__words">1,858 <span data-ui-lang="zh-CN">字</span><span data-ui-lang="en">words</span></span>
   <span class="badge badge--red px">5 <span data-ui-lang="zh-CN">分钟</span><span data-ui-lang="en">min</span></span>
   
 </div>
@@ -165,7 +165,7 @@
 
 <nav class="toc panel" data-i18n-aria-label="post.toc" aria-label="目录">
   <div class="toc__title px"><span data-ui-lang="zh-CN">目录</span><span data-ui-lang="en">Contents</span></div>
-  <ol class="toc-list"><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#Workflow-%E4%B8%8E-Native"><span class="toc-list-text">Workflow 与 Native</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E9%87%87%E9%9B%86%E5%92%8C-GPU-Trace-%E6%9F%A5%E8%AF%A2"><span class="toc-list-text">采集和 GPU Trace 查询</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#Graphics-Capture-%E6%A3%80%E6%9F%A5"><span class="toc-list-text">Graphics Capture 检查</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%BD%93%E5%89%8D%E7%9A%84%E5%8A%9F%E8%83%BD%E7%BC%BA%E5%8F%A3"><span class="toc-list-text">当前的功能缺口</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E6%8E%A5%E5%85%A5%E6%96%B9%E5%BC%8F"><span class="toc-list-text">接入方式</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E6%88%91%E7%9A%84%E4%BD%BF%E7%94%A8%E5%80%BE%E5%90%91"><span class="toc-list-text">我的使用倾向</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="toc-list-text">参考资料</span></a></li></ol>
+  <ol class="toc-list"><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#Workflow-%E4%B8%8E-Native"><span class="toc-list-text">Workflow 与 Native</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E9%87%87%E9%9B%86%E5%92%8C-GPU-Trace-%E6%9F%A5%E8%AF%A2"><span class="toc-list-text">采集和 GPU Trace 查询</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#Graphics-Capture-%E6%A3%80%E6%9F%A5"><span class="toc-list-text">Graphics Capture 检查</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%BD%93%E5%89%8D%E7%9A%84%E5%8A%9F%E8%83%BD%E7%BC%BA%E5%8F%A3"><span class="toc-list-text">当前的功能缺口</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E6%8E%A5%E5%85%A5%E6%96%B9%E5%BC%8F"><span class="toc-list-text">接入方式</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E6%80%BB%E7%BB%93"><span class="toc-list-text">总结</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="toc-list-text">参考资料</span></a></li></ol>
 </nav>
 
 
@@ -175,7 +175,7 @@
     <div class="post-body panel">
       <div class="post-content" id="drift-post-content" itemprop="articleBody" lang="zh-CN">
         <p>Nsight Graphics 2026.4 新增了 MCP Server，AI agent 可以直接调用 Nsight 的采集和查询接口，读取 GPU Trace、Graphics Capture 和 Aftermath 崩溃 dump。</p>
-<p>我试用了 2026.4.0，测试环境是 RTX 4070 Ti 和 Vulkan。测试对象包括几个瓶颈已知的小程序、已有项目的 capture，以及 Unity 的 GPU Trace。最明显的区别是两种接口模式提供的数据范围：Workflow 适合快速浏览，Native 才能覆盖按 pass 查询、源码热点和图形状态检查这些日常操作。</p>
+<p>本次试用的是 Nsight Graphics 2026.4.0，测试环境是 RTX 4070 Ti 和 Vulkan。测试对象包括几个瓶颈已知的小程序、已有项目的 capture，以及 Unity 的 GPU Trace。最明显的区别是两种接口模式提供的数据范围：Workflow 适合快速浏览，Native 才能覆盖按 pass 查询、源码热点和图形状态检查这些日常操作。</p>
 <span id="more"></span>
 
 <h2 id="Workflow-与-Native"><a href="#Workflow-与-Native" class="headerlink" title="Workflow 与 Native"></a>Workflow 与 Native</h2><p>默认的 <strong>Workflow</strong> 将帧、marker、指标、draw 和资源等整理成统一的表，agent 用类似 SQL 的方式查询。<strong>Native</strong> 暴露更多细粒度操作，可以选择 GPU Trace 中的 marker 或时间范围，也能检查 Graphics Capture 中的具体 draw 和资源。</p>
@@ -273,7 +273,7 @@
 
 <p>Native 使用渐进式工具发现，两种模式的工具名称和会话行为不同，需要按所选模式配置客户端。官方目前要求 agent 与服务端运行在同一台 Windows 机器上。<a target="_blank" rel="noopener" href="https://docs.nvidia.com/nsight-graphics/UserGuide/automation.html">MCP 接入说明</a></p>
 <p>本次尚未验证 Claude Code 的直接接入，也没有完成远程测试机、D3D12 和真实游戏 live 采集测试。</p>
-<h2 id="我的使用倾向"><a href="#我的使用倾向" class="headerlink" title="我的使用倾向"></a>我的使用倾向</h2><p>目前我会优先接入 Native，用它完成采集控制、pass 指标查询、源码级 shader 热点、pipeline 和资源检查，以及外部 trace 的读取。Workflow 的采集限制和 capture 数据缺失，使它更适合快速浏览，暂时不适合承担日常的详细检查。</p>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>Workflow 支持的功能有限，反而 Native 更适合接入到性能分析自动化流程里。Native 能完成采集控制、pass 指标查询、源码级 shader 热点查询、pipeline 和资源检查，以及外部 trace 的读取。Workflow 受采集限制和 capture 数据缺失影响，更适合快速浏览，暂时不适合承担日常的详细检查。</p>
 <p>对已有的 nsight-graphics-analyzer，Native 最值得补进来的能力是源码级热点、较完整的图形状态与资源检查，以及读取外部 trace。原有的判定和统计逻辑可以继续保留。后续更期待批量指标查询、逐 draw 计数器和调试接口，让这些能力也能直接接入自动化工具。</p>
 <h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
 <li><a target="_blank" rel="noopener" href="https://developer.nvidia.com/nsight-graphics/getting-started/release-note-v2026.4">Nsight Graphics 2026.4 更新说明</a></li>
@@ -347,7 +347,7 @@
     <span class="reading-rail__percent" data-reading-percent aria-hidden="true">000%</span>
   </div>
   <div class="reading-rail__stage">
-    <div class="reading-rail__chapters"><ol class="toc-list"><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#Workflow-%E4%B8%8E-Native"><span class="toc-list-text">Workflow 与 Native</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E9%87%87%E9%9B%86%E5%92%8C-GPU-Trace-%E6%9F%A5%E8%AF%A2"><span class="toc-list-text">采集和 GPU Trace 查询</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#Graphics-Capture-%E6%A3%80%E6%9F%A5"><span class="toc-list-text">Graphics Capture 检查</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%BD%93%E5%89%8D%E7%9A%84%E5%8A%9F%E8%83%BD%E7%BC%BA%E5%8F%A3"><span class="toc-list-text">当前的功能缺口</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E6%8E%A5%E5%85%A5%E6%96%B9%E5%BC%8F"><span class="toc-list-text">接入方式</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E6%88%91%E7%9A%84%E4%BD%BF%E7%94%A8%E5%80%BE%E5%90%91"><span class="toc-list-text">我的使用倾向</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="toc-list-text">参考资料</span></a></li></ol></div>
+    <div class="reading-rail__chapters"><ol class="toc-list"><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#Workflow-%E4%B8%8E-Native"><span class="toc-list-text">Workflow 与 Native</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E9%87%87%E9%9B%86%E5%92%8C-GPU-Trace-%E6%9F%A5%E8%AF%A2"><span class="toc-list-text">采集和 GPU Trace 查询</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#Graphics-Capture-%E6%A3%80%E6%9F%A5"><span class="toc-list-text">Graphics Capture 检查</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%BD%93%E5%89%8D%E7%9A%84%E5%8A%9F%E8%83%BD%E7%BC%BA%E5%8F%A3"><span class="toc-list-text">当前的功能缺口</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E6%8E%A5%E5%85%A5%E6%96%B9%E5%BC%8F"><span class="toc-list-text">接入方式</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E6%80%BB%E7%BB%93"><span class="toc-list-text">总结</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="toc-list-text">参考资料</span></a></li></ol></div>
     <div class="reading-rail__ruler" role="scrollbar" tabindex="0" aria-controls="drift-post-content" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-i18n-aria-label="post.reading_progress" aria-label="阅读进度">
       <div class="reading-rail__ticks" aria-hidden="true">
         
