@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN" data-palette="green" data-palette-pref="auto" data-background="sky" data-mode="day" data-mode-pref="day">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Nsight Graphics MCP 试用体验 · DoubleYe</title>
+  
+  <meta name="theme-color" content="#f0eee8">
+  <meta name="description" content="Nsight Graphics 2026.4 新增了 MCP Server，AI agent 可以通过它采集 GPU Trace、读取 Graphics Capture，并查询性能数据。对已有自动化分析流程来说，它提供了一个统一的数据入口，可以减少手动操作 GUI、导出报表和解析文件的工作。 我用 2026.4.0 做了一轮试用，重点看它能否按 pass 取指标、定位 shader 热点，以及检查">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Nsight Graphics MCP 试用体验">
+<meta property="og:url" content="https://frostyleaves.github.io/2026/11/15/rendering-digest-2026-11-15/index.html">
+<meta property="og:site_name" content="DoubleYe">
+<meta property="og:description" content="Nsight Graphics 2026.4 新增了 MCP Server，AI agent 可以通过它采集 GPU Trace、读取 Graphics Capture，并查询性能数据。对已有自动化分析流程来说，它提供了一个统一的数据入口，可以减少手动操作 GUI、导出报表和解析文件的工作。 我用 2026.4.0 做了一轮试用，重点看它能否按 pass 取指标、定位 shader 热点，以及检查">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-11-15T00:00:00.000Z">
+<meta property="article:modified_time" content="2026-11-15T00:00:00.000Z">
+<meta property="article:author" content="DoubleYe">
+<meta property="article:tag" content="GPU 性能分析">
+<meta property="article:tag" content="MCP">
+<meta property="article:tag" content="Nsight Graphics">
+<meta name="twitter:card" content="summary">
+  
+    <link rel="icon" href="/images/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" sizes="192x192" href="/images/favicon-192x192.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+  
+  
+  
+<link rel="stylesheet" href="/css/fonts.css">
+
+  
+<link rel="stylesheet" href="/css/main.css">
+
+  <style id="palette-css">:root,:root[data-palette="blue"]{--accent:#009dff;--bg-1:#009dff;--bg-2:#1f4f77;--bg-3:#1c2628}
+.tone-blue{--tone:#009dff}
+:root[data-palette="green"]{--accent:#4bc292;--bg-1:#4bc292;--bg-2:#1f5e4a;--bg-3:#1c2628}
+.tone-green{--tone:#4bc292}
+:root[data-palette="gold"]{--accent:#f3b958;--bg-1:#f3b958;--bg-2:#7e5a1e;--bg-3:#1c2628}
+.tone-gold{--tone:#f3b958}
+:root[data-palette="red"]{--accent:#fe5f55;--bg-1:#fe5f55;--bg-2:#6e2a26;--bg-3:#1c2628}
+.tone-red{--tone:#fe5f55}</style>
+  <style id="language-css">:root[lang="zh-CN"] [data-ui-lang]:not([data-ui-lang="zh-CN"]){display:none}
+:root[lang="en"] [data-ui-lang]:not([data-ui-lang="en"]){display:none}</style>
+  <script>
+    (function () {
+      // Keep reader preferences when upgrading from the theme's former name.
+      function migrate(storage, names) {
+        names.forEach(function (name) {
+          var key = 'drift-' + name;
+          if (storage.getItem(key) !== null) return;
+          var previous = storage.getItem('doubleye-' + name);
+          if (previous !== null) storage.setItem(key, previous);
+        });
+      }
+      try { migrate(localStorage, ['palette', 'background', 'mode']); } catch (e) { /* storage may be blocked */ }
+      try { migrate(sessionStorage, ['bg-time']); } catch (e) { /* storage may be blocked */ }
+      var root = document.documentElement;
+      var languages = ["zh-CN","en"], language = null;
+      try { language = localStorage.getItem('drift-language'); } catch (e) { /* storage may be blocked */ }
+      root.lang = languages.indexOf(language) >= 0 ? language : "zh-CN";
+      var names = ["blue","green","gold","red"], auto = 'green', pref = null;
+      try { pref = localStorage.getItem('drift-palette'); } catch (e) { pref = null; }
+      if (names.indexOf(pref) < 0) pref = 'auto';
+      root.setAttribute('data-palette', pref === 'auto' ? auto : pref);
+      root.setAttribute('data-palette-pref', pref);
+      var scenes = ["sky","ocean"], scene = null, mode = null;
+      try { scene = localStorage.getItem('drift-background'); mode = localStorage.getItem('drift-mode'); } catch (e) { scene = null; mode = null; }
+      if (scenes.indexOf(scene) < 0) scene = 'sky';
+      if (mode !== 'auto' && mode !== 'day' && mode !== 'night') mode = 'day';
+      root.setAttribute('data-mode-pref', mode);
+      if (mode === 'auto') mode = window.matchMedia && !window.matchMedia('(prefers-color-scheme: dark)').matches ? 'day' : 'night';
+      root.setAttribute('data-background', scene);
+      root.setAttribute('data-mode', mode);
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute('content', mode === 'day' ? '#f0eee8' : '#191a1c');
+    })();
+    window.__THEME = {
+      palettes: {"blue":{"colors":["#009dff","#1f4f77","#1c2628"],"accent":"#009dff"},"green":{"colors":["#4bc292","#1f5e4a","#1c2628"],"accent":"#4bc292"},"gold":{"colors":["#f3b958","#7e5a1e","#1c2628"],"accent":"#f3b958"},"red":{"colors":["#fe5f55","#6e2a26","#1c2628"],"accent":"#fe5f55"}},
+      auto: 'green',
+      labels: {"auto":"自动","toggle":"切换配色","copy":"复制","copied":"已复制","sceneToggle":"切换背景","scenes":{"sky":"天空","ocean":"海洋"},"modeToggle":"切换日夜","modes":{"auto":"自动","day":"日间","night":"夜间"},"blue":"湖蓝","green":"青翠","gold":"琥珀","red":"绯红"},
+      background: {"enable":true,"style":"sky","styles":["sky","ocean"],"mode":"day","speed":1,"fps":30,"pixel_filter":740},
+      juice: {"tilt":true,"wobble":true,"foil":"pixel-glass","text":"titles"},
+      i18n: {"languages":["zh-CN","en"],"default":"zh-CN","dictionaries":{"zh-CN":{"nav.home":"首页","nav.posts":"文章","nav.categories":"分类","nav.tags":"标签","nav.archives":"归档","language.toggle":"切换语言","language.name":"中文","language.short":"中","pagination":"翻页","hero.posts":"篇文章","hero.categories":"个分类","hero.tags":"个标签","post.navigation":"文章导航","post.toc":"目录","post.reading_progress":"阅读进度","post.reading_hint":"拖动刻度跳转 · 点击章节定位","post.updated":"更新于","post.words":"字","post.minutes":"分钟","post.prev":"上一篇","post.next":"下一篇","post.license_prefix":"本文采用","post.license_suffix":"许可","post.copy":"复制","post.copied":"已复制","post.scroll_down":"向下滚动","post.tags":"标签","archive.title":"归档","archive.total_prefix":"共","archive.total_suffix":"篇","category.title":"分类","tag.title":"标签","footer.powered":"由 Hexo 驱动","palette.toggle":"切换配色","palette.auto":"自动","palette.blue":"湖蓝","palette.green":"青翠","palette.gold":"琥珀","palette.red":"绯红","background.toggle":"切换背景","background.sky":"天空","background.ocean":"海洋","mode.toggle":"切换日夜","mode.auto":"自动","mode.day":"日间","mode.night":"夜间","error404.title":"页面不存在","error404.description":"你访问的页面可能已被移动或删除。","error404.home":"返回首页","skip":"跳到正文"},"en":{"nav.home":"Home","nav.posts":"Posts","nav.categories":"Categories","nav.tags":"Tags","nav.archives":"Archives","language.toggle":"Language","language.name":"English","language.short":"EN","pagination":"Pagination","hero.posts":"posts","hero.categories":"categories","hero.tags":"tags","post.navigation":"Post navigation","post.toc":"Contents","post.reading_progress":"Reading progress","post.reading_hint":"Drag the ruler · Click a chapter","post.updated":"Updated","post.words":"words","post.minutes":"min","post.prev":"Newer","post.next":"Older","post.license_prefix":"Licensed under","post.license_suffix":"","post.copy":"Copy","post.copied":"Copied","post.scroll_down":"Scroll down","post.tags":"Tags","archive.title":"Archives","archive.total_prefix":"","archive.total_suffix":"posts","category.title":"Categories","tag.title":"Tags","footer.powered":"Powered by Hexo","palette.toggle":"Palette","palette.auto":"auto","palette.blue":"Lake","palette.green":"Jade","palette.gold":"Amber","palette.red":"Crimson","background.toggle":"Backdrop","background.sky":"Sky","background.ocean":"Ocean","mode.toggle":"Day / night","mode.auto":"Auto","mode.day":"Day","mode.night":"Night","error404.title":"Page not found","error404.description":"The page you are looking for may have been moved or removed.","error404.home":"Back to home","skip":"Skip to content"}}}
+    };
+  </script>
+<meta name="generator" content="Hexo 8.1.1"></head>
+
+
+<body class="juice-tilt juice-wobble juice-foil text-titles" data-card-effect="pixel-glass">
+  <a class="skip-link" href="#main"><span data-ui-lang="zh-CN">跳到正文</span><span data-ui-lang="en">Skip to content</span></a>
+  <div class="backdrop" id="backdrop" aria-hidden="true"><canvas class="backdrop__canvas" id="backdrop-canvas"></canvas><canvas class="backdrop__snapshot" id="backdrop-snapshot"></canvas></div>
+  
+<header class="site-header" id="site-header">
+  <div class="site-header__inner">
+    <a class="site-brand px" href="/" aria-label="DoubleYe"><span class="w"><span class="ch" style="--i:0" aria-hidden="true">D</span><span class="ch" style="--i:1" aria-hidden="true">o</span><span class="ch" style="--i:2" aria-hidden="true">u</span><span class="ch" style="--i:3" aria-hidden="true">b</span><span class="ch" style="--i:4" aria-hidden="true">l</span><span class="ch" style="--i:5" aria-hidden="true">e</span><span class="ch" style="--i:6" aria-hidden="true">Y</span><span class="ch" style="--i:7" aria-hidden="true">e</span></span></a>
+    <nav class="site-nav" data-i18n-aria-label="nav.home" aria-label="首页">
+      
+        <a class="btn btn--nav px" href="/archives/"><span data-ui-lang="zh-CN">文章</span><span data-ui-lang="en">Posts</span></a>
+      
+        <a class="btn btn--nav px" href="/categories/"><span data-ui-lang="zh-CN">分类</span><span data-ui-lang="en">Categories</span></a>
+      
+        <a class="btn btn--nav px" href="/tags/"><span data-ui-lang="zh-CN">标签</span><span data-ui-lang="en">Tags</span></a>
+      
+        <a class="btn btn--nav px" href="/"><span data-ui-lang="zh-CN">首页</span><span data-ui-lang="en">Home</span></a>
+      
+      <div class="site-controls">
+      <button class="palette-toggle" id="palette-toggle" type="button" aria-label="切换配色: 自动 · 青翠" title="切换配色: 自动 · 青翠">
+        <span class="palette-toggle__disc" aria-hidden="true"></span>
+        <span class="palette-toggle__label px" id="palette-label"><span data-ui-lang="zh-CN">自动</span><span data-ui-lang="en">auto</span></span>
+      </button>
+      
+      <button class="scene-toggle" id="background-toggle" type="button" aria-label="切换背景" title="切换背景: 天空">
+        <span class="scene-toggle__icon" aria-hidden="true">
+          <svg class="scene-icon scene-icon--sky" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="2" y="0" width="1" height="5"/><rect x="0" y="2" width="5" height="1"/><rect x="1" y="1" width="1" height="1"/><rect x="3" y="1" width="1" height="1"/><rect x="1" y="3" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="6" y="5" width="4" height="1"/><rect x="5" y="6" width="6" height="1"/><rect x="4" y="7" width="8" height="1"/><rect x="3" y="8" width="9" height="2"/></svg>
+          <svg class="scene-icon scene-icon--ocean" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="1" y="2" width="3" height="1"/><rect x="6" y="2" width="3" height="1"/><rect x="0" y="3" width="1" height="1"/><rect x="4" y="3" width="2" height="1"/><rect x="9" y="3" width="2" height="1"/><rect x="1" y="6" width="3" height="1"/><rect x="6" y="6" width="3" height="1"/><rect x="0" y="7" width="1" height="1"/><rect x="4" y="7" width="2" height="1"/><rect x="9" y="7" width="2" height="1"/><rect x="1" y="10" width="3" height="1"/><rect x="6" y="10" width="3" height="1"/><rect x="0" y="11" width="1" height="1"/><rect x="4" y="11" width="2" height="1"/><rect x="9" y="11" width="2" height="1"/></svg>
+        </span>
+        <span class="scene-toggle__label px" id="background-label"><span data-ui-lang="zh-CN">天空</span><span data-ui-lang="en">Sky</span></span>
+      </button>
+      
+      <button class="scene-toggle mode-toggle" id="mode-toggle" type="button" aria-label="切换日夜" title="切换日夜: 日间">
+        <span class="scene-toggle__icon" aria-hidden="true">
+          <svg class="mode-icon mode-icon--auto" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="1" y="1" width="10" height="1"/><rect x="0" y="2" width="1" height="5"/><rect x="11" y="2" width="1" height="5"/><rect x="1" y="7" width="10" height="1"/><rect x="5" y="8" width="2" height="2"/><rect x="3" y="10" width="6" height="1"/></svg>
+          <svg class="mode-icon mode-icon--night" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="4" y="1" width="4" height="1"/><rect x="3" y="2" width="2" height="1"/><rect x="2" y="3" width="2" height="2"/><rect x="2" y="5" width="2" height="2"/><rect x="2" y="7" width="2" height="2"/><rect x="3" y="9" width="2" height="1"/><rect x="4" y="10" width="4" height="1"/><rect x="8" y="9" width="2" height="1"/><rect x="8" y="2" width="2" height="1"/></svg>
+          <svg class="mode-icon mode-icon--day" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="4" y="4" width="4" height="4"/><rect x="5" y="0" width="2" height="2"/><rect x="5" y="10" width="2" height="2"/><rect x="0" y="5" width="2" height="2"/><rect x="10" y="5" width="2" height="2"/><rect x="1" y="1" width="2" height="1"/><rect x="1" y="2" width="1" height="1"/><rect x="9" y="1" width="2" height="1"/><rect x="10" y="2" width="1" height="1"/><rect x="1" y="9" width="1" height="1"/><rect x="1" y="10" width="2" height="1"/><rect x="10" y="9" width="1" height="1"/><rect x="9" y="10" width="2" height="1"/></svg>
+        </span>
+        <span class="scene-toggle__label px" id="mode-label"><span data-ui-lang="zh-CN">日间</span><span data-ui-lang="en">Day</span></span>
+      </button>
+      
+      <button class="language-toggle px" id="language-toggle" type="button" title="切换语言" aria-label="切换语言"><span data-ui-lang="zh-CN">中</span><span data-ui-lang="en">EN</span></button>
+      
+      </div>
+    </nav>
+  </div>
+</header>
+
+  <main id="main" class="site-main">
+    
+<article class="post-layout has-toc" itemscope itemtype="https://schema.org/BlogPosting">
+  
+  <div class="reading-mobile" hidden role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-i18n-aria-label="post.reading_progress" aria-label="阅读进度"><span></span></div>
+  
+  <div class="post container">
+    <header class="post-header">
+      <h1 class="post-title px title-anim" itemprop="headline" aria-label="Nsight Graphics MCP 试用体验"><span class="w"><span class="ch" style="--i:0" aria-hidden="true">N</span><span class="ch" style="--i:1" aria-hidden="true">s</span><span class="ch" style="--i:2" aria-hidden="true">i</span><span class="ch" style="--i:3" aria-hidden="true">g</span><span class="ch" style="--i:4" aria-hidden="true">h</span><span class="ch" style="--i:5" aria-hidden="true">t</span></span> <span class="w"><span class="ch" style="--i:6" aria-hidden="true">G</span><span class="ch" style="--i:7" aria-hidden="true">r</span><span class="ch" style="--i:8" aria-hidden="true">a</span><span class="ch" style="--i:9" aria-hidden="true">p</span><span class="ch" style="--i:10" aria-hidden="true">h</span><span class="ch" style="--i:11" aria-hidden="true">i</span><span class="ch" style="--i:12" aria-hidden="true">c</span><span class="ch" style="--i:13" aria-hidden="true">s</span></span> <span class="w"><span class="ch" style="--i:14" aria-hidden="true">M</span><span class="ch" style="--i:15" aria-hidden="true">C</span><span class="ch" style="--i:16" aria-hidden="true">P</span></span> <span class="ch" style="--i:17" aria-hidden="true">试</span><span class="ch" style="--i:18" aria-hidden="true">用</span><span class="ch" style="--i:19" aria-hidden="true">体</span><span class="ch" style="--i:20" aria-hidden="true">验</span></h1>
+      
+<div class="post-meta">
+  <time class="badge badge--date px" datetime="2026-11-15T00:00:00.000Z">2026-11-15</time>
+  
+    <a class="seal tone-green px" href="/categories/%E6%AF%8F%E6%97%A5%E6%8E%A8%E8%8D%90/"><span class="seal__dot" aria-hidden="true"></span>每日推荐</a>
+  
+  <span class="badge badge--blue px post-meta__words">2,194 <span data-ui-lang="zh-CN">字</span><span data-ui-lang="en">words</span></span>
+  <span class="badge badge--red px">6 <span data-ui-lang="zh-CN">分钟</span><span data-ui-lang="en">min</span></span>
+  
+</div>
+
+    </header>
+
+    
+    <details class="toc-mobile panel">
+      <summary class="px"><span data-ui-lang="zh-CN">目录</span><span data-ui-lang="en">Contents</span><span class="toc-mobile__percent" data-reading-percent aria-hidden="true"></span></summary>
+      
+
+<nav class="toc panel" data-i18n-aria-label="post.toc" aria-label="目录">
+  <div class="toc__title px"><span data-ui-lang="zh-CN">目录</span><span data-ui-lang="en">Contents</span></div>
+  <ol class="toc-list"><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E4%B8%A4%E7%A7%8D%E6%8E%A5%E5%8F%A3%E6%A8%A1%E5%BC%8F"><span class="toc-list-text">两种接口模式</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E4%BB%8E-pass-%E6%9F%A5%E5%88%B0%E6%BA%90%E7%A0%81"><span class="toc-list-text">从 pass 查到源码</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E7%8A%B6%E6%80%81%E6%A3%80%E6%9F%A5%E5%92%8C%E9%87%8D%E6%94%BE%E8%AE%A1%E6%97%B6"><span class="toc-list-text">状态检查和重放计时</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E6%95%B0%E6%8D%AE%E4%BB%8D%E9%9C%80%E8%A6%81%E5%88%86%E6%9E%90%E6%96%B9%E6%B3%95"><span class="toc-list-text">数据仍需要分析方法</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E7%9B%AE%E5%89%8D%E4%BB%8D%E7%BC%BA%E5%B0%91%E7%9A%84%E7%8E%AF%E8%8A%82"><span class="toc-list-text">目前仍缺少的环节</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E6%8E%A5%E5%85%A5%E4%B8%8E%E4%BD%BF%E7%94%A8%E5%BB%BA%E8%AE%AE"><span class="toc-list-text">接入与使用建议</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="toc-list-text">参考资料</span></a></li></ol>
+</nav>
+
+
+    </details>
+    
+
+    <div class="post-body panel">
+      <div class="post-content" id="drift-post-content" itemprop="articleBody" lang="zh-CN">
+        <p>Nsight Graphics 2026.4 新增了 MCP Server，AI agent 可以通过它采集 GPU Trace、读取 Graphics Capture，并查询性能数据。对已有自动化分析流程来说，它提供了一个统一的数据入口，可以减少手动操作 GUI、导出报表和解析文件的工作。</p>
+<p>我用 2026.4.0 做了一轮试用，重点看它能否按 pass 取指标、定位 shader 热点，以及检查 draw 的状态。下面结合官方文档与这次试用记录，介绍两种接口模式和目前的限制。本文补入 11 月 15 日的每日推荐，内容于 11 月 17 日整理。</p>
+<span id="more"></span>
+
+<h2 id="两种接口模式"><a href="#两种接口模式" class="headerlink" title="两种接口模式"></a>两种接口模式</h2><p>官方将 MCP Server 标为 Alpha，2026.4 先在 Windows 提供。默认的 <strong>Workflow</strong> 面向常见任务，接口较少；<strong>Native</strong> 提供更细的检查和自动化能力，仍处于实验阶段。<a target="_blank" rel="noopener" href="https://developer.nvidia.com/nsight-graphics/getting-started/release-note-v2026.4">2026.4 更新说明</a></p>
+<p>试用中的差别主要在数据粒度。Workflow 把帧、marker、指标和 draw 等整理成统一的表，适合查询整体信息。Native 则可以选择具体 marker 实例或时间范围，继续查询指标、shader 和图形状态。</p>
+<p>例如，整段 trace 的平均吞吐无法直接回答某个阴影 pass 的瓶颈。需要先选中该 pass 的时间范围，再读取对应的 SM、L2、DRAM 等指标，减少整段平均值对局部瓶颈的掩盖。Native 在这一步提供了更合适的接口。</p>
+<p>以下是本次 2026.4.0 试用观察：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>操作</th>
+<th>Workflow</th>
+<th>Native</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>控制采集起点与帧数</td>
+<td>本次接口只能立即采一帧</td>
+<td>可按帧或时间触发，并指定帧数</td>
+</tr>
+<tr>
+<td>查询 pass 对应的硬件指标</td>
+<td>只能取得整段 trace 的汇总值</td>
+<td>可按 marker 实例或时间范围查询</td>
+</tr>
+<tr>
+<td>检查 shader 热点</td>
+<td>依赖已有 trace 包含 Shader Profiler 数据</td>
+<td>可进一步缩小到热点 pass，并查询源码位置</td>
+</tr>
+<tr>
+<td>检查 draw 参数与 pipeline</td>
+<td>部分信息缺失，观察到实例数漏计</td>
+<td>可读到实例数、深度附件、viewport 等状态</td>
+</tr>
+<tr>
+<td>检查资源</td>
+<td>本次查询的资源信息为空</td>
+<td>可检查纹理、buffer 及其描述</td>
+</tr>
+<tr>
+<td>对 draw 做 replay 计时</td>
+<td>本次未取得</td>
+<td>已取得逐 draw 耗时</td>
+</tr>
+</tbody></table></div>
+<p>因此，我暂时会把 Workflow 用于快速浏览，正式定位优先使用 Native。尤其是实例数和资源信息，不能因为接口返回了结果，就默认它完整可靠。</p>
+<h2 id="从-pass-查到源码"><a href="#从-pass-查到源码" class="headerlink" title="从 pass 查到源码"></a>从 pass 查到源码</h2><p>这次测试使用 RTX 4070 Ti、Vulkan 和瓶颈已知的小程序，覆盖 SSBO 带宽、分支发散、低占用延迟以及 early-Z &#x2F; late-Z。小程序便于检查返回的数据是否符合预期，也减少了真实项目中多个问题相互影响的情况。</p>
+<p>在分支发散用例中，Native 对应 marker 的“每条指令平均活跃线程数”为 <strong>4.04</strong>，SM 吞吐为 <strong>89.5%</strong>。已有分析工具读取的结果分别为 <strong>4.03</strong> 和 <strong>88.4%</strong>，两条读取路径得到的数值接近。结合已知的测试逻辑，较低的活跃线程数支持了线程利用不足的判断。</p>
+<p>接着通过 Shader Profiler，查询定位到了 switch 分支对应的源码行。这样，分析流程就能从耗时 pass 继续走到具体 shader 和源码位置，再由开发者检查实现。</p>
+<p>记录中还有一个容易误读的数值：<strong>Not Selected 占 68%</strong>。NVIDIA 对它的定义是 warp 已具备发射条件，但调度器选择了另一个 warp。单看这个比例不能证明分支发散，也不能直接当作可消除的等待时间。这里判断发散的依据应保留在测试逻辑、活跃线程数和源码分支上。<a target="_blank" rel="noopener" href="https://docs.nvidia.com/nsight-graphics/UserGuide/shader-profiler.html">Shader Profiler 指标说明</a></p>
+<p>源码关联也取决于采集数据是否包含相应信息。没有源码或行号数据时，MCP 无法补出它们。</p>
+<h2 id="状态检查和重放计时"><a href="#状态检查和重放计时" class="headerlink" title="状态检查和重放计时"></a>状态检查和重放计时</h2><p>early-Z &#x2F; late-Z 用例验证了另一条路径：先检查 draw 是否按预期提交，再比较其执行时间。</p>
+<p>Native 返回了 16 个实例、D32 深度附件和 2560 × 1440 viewport，与测试设置一致。Replay 计时中，early-Z 用例的 draw 为 <strong>0.21 ms</strong>，写入 <code>gl_FragDepth</code> 的 late-Z 用例为 <strong>3.83 ms</strong>。这组结果描述的是本次测试程序中的两个 draw，不能推广为所有深度写入 shader 的固定代价。</p>
+<p>状态和计时要一起看。只看较慢的 draw，无法排除实例数、深度状态或其他 pipeline 配置有误；先核对这些条件，再回到 shader 和指标，比较才有明确对象。</p>
+<p>本次还验证了延迟采集：从启动程序、等待第 120 帧、采集 5 帧到写出文件，一次调用约需 5～7 秒。这是整个操作的耗时，包含等待应用运行的时间，不能当作 MCP 请求延迟。</p>
+<h2 id="数据仍需要分析方法"><a href="#数据仍需要分析方法" class="headerlink" title="数据仍需要分析方法"></a>数据仍需要分析方法</h2><p>MCP 能返回计数器和状态，如何解释它们仍由分析流程负责。我的使用顺序会是先看 GPU 时间线是否存在空闲，再找耗时 pass，随后读取对应范围的吞吐、占用率和 stall，最后检查 shader 与 pipeline。</p>
+<p>这些数据之间需要相互印证。吞吐较低可能与执行间隙、采样范围或依赖等待有关；某个 stall 比例高，也不代表消除它就能获得等比例加速。分析报告应保留所选时间范围、指标名称和关联 draw，让结论能够被复查。</p>
+<p>试用记录还出现过硬件 draw 统计与目标程序 API 调用不一致的情况，并观察到吞吐结果波动。我会将这种样本标为待排查，检查后台 GPU 工作、上下文切换和采样范围，必要时重新采集。</p>
+<p>官方说明，GPU Trace 中切换到其他进程上下文的区间可能没有采样数据；具体指标如何归属，需要结合采集模式和时间线判断。<a target="_blank" rel="noopener" href="https://docs.nvidia.com/nsight-graphics/UserGuide/gpu-trace-ui.html">GPU Trace UI 说明</a></p>
+<h2 id="目前仍缺少的环节"><a href="#目前仍缺少的环节" class="headerlink" title="目前仍缺少的环节"></a>目前仍缺少的环节</h2><p>本次 Native 工具目录中没有找到 Range Profiler、Pixel History 和 Shader Debugger 对应接口。逐 draw replay 可以帮助找出慢 draw，但还不能据此取得单个 draw 的完整硬件计数器；像素历史和单步调试仍需使用其他工具路径。这里说的是本次 MCP 暴露的能力，不代表 Nsight Graphics GUI 没有这些功能。</p>
+<p>批量查询也比较繁琐。本次接口按“一个指标、一个时间范围”返回结果，查询 10 个 pass 的 7 项指标需要组织 70 次调用。跨帧平均、异常样本排除和 A&#x2F;B 对比也要由外层程序完成。实际接入时，适合让脚本负责批量查询与统计，只把关键结果和证据交给 agent，避免在对话里反复搬运整表数据。</p>
+<p>Shader 替换后的重放、远程测试机、D3D12 和真实游戏的 live 采集都还没有完成验证。记录中的既有项目 capture 和 Unity trace 分析，也不能替代这些场景的实测。</p>
+<h2 id="接入与使用建议"><a href="#接入与使用建议" class="headerlink" title="接入与使用建议"></a>接入与使用建议</h2><p>Windows 安装包中的 <code>ngfx-mcp.exe</code> 位于 <code>host/windows-desktop-nomad-x64</code>。默认启动后，兼容客户端可通过 Streamable HTTP 连接 <code>http://127.0.0.1:7661/mcp</code>；Native 的官方配置方式是让客户端启动该程序，并传入：</p>
+<figure class="highlight text" data-lang="text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">--profile native --transport stdio</span><br></pre></td></tr></table></figure>
+
+<p>两种模式的工具名称和会话行为不同。接入时先读取当前工具清单，再选择调用方式，不能只切换传输协议。官方目前要求 agent 和服务端运行在同一台 Windows 机器上；本次尚未验证 Claude Code 的直接接入。<a target="_blank" rel="noopener" href="https://docs.nvidia.com/nsight-graphics/UserGuide/automation.html">MCP 接入说明</a></p>
+<p>我的结论是，<strong>Native 已经值得作为日常性能分析的数据接口试用</strong>。它最有价值的部分，是把按范围查询指标、源码热点和 pipeline 检查连接到同一条自动化流程中。已有分析工具可以保留瓶颈判定和样本检查逻辑，逐步替换采集与数据读取部分，不必一次重写全部流程。</p>
+<p>接入后仍应保存原始 capture、固定 Nsight 版本，并用已知用例检查关键字段。接口升级、字段缺失或采样异常都可能影响最终判断；一次能够顺利调用，不等于已经完成可靠性验证。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://developer.nvidia.com/nsight-graphics/getting-started/release-note-v2026.4">Nsight Graphics 2026.4 更新说明</a></li>
+<li><a target="_blank" rel="noopener" href="https://docs.nvidia.com/nsight-graphics/UserGuide/automation.html">Graphics Capture Automation 与 MCP Preview</a></li>
+<li><a target="_blank" rel="noopener" href="https://docs.nvidia.com/nsight-graphics/UserGuide/shader-profiler.html">Shader Profiler</a></li>
+<li><a target="_blank" rel="noopener" href="https://docs.nvidia.com/nsight-graphics/UserGuide/gpu-trace-ui.html">GPU Trace UI Reference</a></li>
+<li>本文实测部分整理自个人的 Nsight Graphics 2026.4.0 试用记录；官方文档用于说明功能范围与指标定义。</li>
+</ul>
+
+      </div>
+      
+        <p class="post-license">
+          <span data-ui-lang="zh-CN">本文采用</span><span data-ui-lang="en">Licensed under</span>
+          <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="license noopener">CC BY-NC 4.0</a>
+          <span data-ui-lang="zh-CN">许可</span><span data-ui-lang="en"></span>
+        </p>
+      
+    </div>
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a class="chip px" href="/tags/Nsight-Graphics/">#Nsight Graphics</a>
+          
+            <a class="chip px" href="/tags/MCP/">#MCP</a>
+          
+            <a class="chip px" href="/tags/GPU-%E6%80%A7%E8%83%BD%E5%88%86%E6%9E%90/">#GPU 性能分析</a>
+          
+        </div>
+      
+      
+      <nav class="post-nav" data-i18n-aria-label="post.navigation" aria-label="文章导航">
+        
+          <a class="post-nav__item post-nav__prev card" data-tilt href="/2026/11/16/rendering-digest-2026-11-16/">
+            <span class="card__inner">
+              <span class="post-nav__label px"><span data-ui-lang="zh-CN">上一篇</span><span data-ui-lang="en">Newer</span> · 2026-11-16</span>
+              <span class="post-nav__title">Nanite Dynamic Wind 植被风模拟</span>
+              <span class="card__foil" aria-hidden="true"></span>
+            </span>
+          </a>
+        
+        
+          <a class="post-nav__item post-nav__next card" data-tilt href="/2025/12/20/VulkanMemoryAllocator/">
+            <span class="card__inner">
+              <span class="post-nav__label px"><span data-ui-lang="zh-CN">下一篇</span><span data-ui-lang="en">Older</span> · 2025-12-20</span>
+              <span class="post-nav__title">Vulkan Memory Allocator 笔记</span>
+              <span class="card__foil" aria-hidden="true"></span>
+            </span>
+          </a>
+        
+      </nav>
+      
+    </footer>
+
+    
+
+<section class="comments panel" id="comments"
+  data-repo="FrostyLeaves/frostyleaves.github.io"
+  data-issue-term="og:title"
+  data-label="utterances"></section>
+
+
+  </div>
+
+  
+  <aside class="post-aside">
+    
+
+<nav class="reading-rail" data-i18n-aria-label="post.toc" aria-label="目录">
+  <div class="reading-rail__head px">
+    <span><span data-ui-lang="zh-CN">目录</span><span data-ui-lang="en">Contents</span></span>
+    <span class="reading-rail__percent" data-reading-percent aria-hidden="true">000%</span>
+  </div>
+  <div class="reading-rail__stage">
+    <div class="reading-rail__chapters"><ol class="toc-list"><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E4%B8%A4%E7%A7%8D%E6%8E%A5%E5%8F%A3%E6%A8%A1%E5%BC%8F"><span class="toc-list-text">两种接口模式</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E4%BB%8E-pass-%E6%9F%A5%E5%88%B0%E6%BA%90%E7%A0%81"><span class="toc-list-text">从 pass 查到源码</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E7%8A%B6%E6%80%81%E6%A3%80%E6%9F%A5%E5%92%8C%E9%87%8D%E6%94%BE%E8%AE%A1%E6%97%B6"><span class="toc-list-text">状态检查和重放计时</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E6%95%B0%E6%8D%AE%E4%BB%8D%E9%9C%80%E8%A6%81%E5%88%86%E6%9E%90%E6%96%B9%E6%B3%95"><span class="toc-list-text">数据仍需要分析方法</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E7%9B%AE%E5%89%8D%E4%BB%8D%E7%BC%BA%E5%B0%91%E7%9A%84%E7%8E%AF%E8%8A%82"><span class="toc-list-text">目前仍缺少的环节</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E6%8E%A5%E5%85%A5%E4%B8%8E%E4%BD%BF%E7%94%A8%E5%BB%BA%E8%AE%AE"><span class="toc-list-text">接入与使用建议</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="toc-list-text">参考资料</span></a></li></ol></div>
+    <div class="reading-rail__ruler" role="scrollbar" tabindex="0" aria-controls="drift-post-content" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-i18n-aria-label="post.reading_progress" aria-label="阅读进度">
+      <div class="reading-rail__ticks" aria-hidden="true">
+        
+        <span class="reading-rail__tick is-major" style="top: 0%"><b>0</b></span>
+        
+        <span class="reading-rail__tick" style="top: 1%"></span>
+        
+        <span class="reading-rail__tick" style="top: 2%"></span>
+        
+        <span class="reading-rail__tick" style="top: 3%"></span>
+        
+        <span class="reading-rail__tick" style="top: 4%"></span>
+        
+        <span class="reading-rail__tick" style="top: 5%"></span>
+        
+        <span class="reading-rail__tick" style="top: 6%"></span>
+        
+        <span class="reading-rail__tick" style="top: 7%"></span>
+        
+        <span class="reading-rail__tick" style="top: 8%"></span>
+        
+        <span class="reading-rail__tick" style="top: 9%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 10%"><b>10</b></span>
+        
+        <span class="reading-rail__tick" style="top: 11%"></span>
+        
+        <span class="reading-rail__tick" style="top: 12%"></span>
+        
+        <span class="reading-rail__tick" style="top: 13%"></span>
+        
+        <span class="reading-rail__tick" style="top: 14%"></span>
+        
+        <span class="reading-rail__tick" style="top: 15%"></span>
+        
+        <span class="reading-rail__tick" style="top: 16%"></span>
+        
+        <span class="reading-rail__tick" style="top: 17%"></span>
+        
+        <span class="reading-rail__tick" style="top: 18%"></span>
+        
+        <span class="reading-rail__tick" style="top: 19%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 20%"><b>20</b></span>
+        
+        <span class="reading-rail__tick" style="top: 21%"></span>
+        
+        <span class="reading-rail__tick" style="top: 22%"></span>
+        
+        <span class="reading-rail__tick" style="top: 23%"></span>
+        
+        <span class="reading-rail__tick" style="top: 24%"></span>
+        
+        <span class="reading-rail__tick" style="top: 25%"></span>
+        
+        <span class="reading-rail__tick" style="top: 26%"></span>
+        
+        <span class="reading-rail__tick" style="top: 27%"></span>
+        
+        <span class="reading-rail__tick" style="top: 28%"></span>
+        
+        <span class="reading-rail__tick" style="top: 29%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 30%"><b>30</b></span>
+        
+        <span class="reading-rail__tick" style="top: 31%"></span>
+        
+        <span class="reading-rail__tick" style="top: 32%"></span>
+        
+        <span class="reading-rail__tick" style="top: 33%"></span>
+        
+        <span class="reading-rail__tick" style="top: 34%"></span>
+        
+        <span class="reading-rail__tick" style="top: 35%"></span>
+        
+        <span class="reading-rail__tick" style="top: 36%"></span>
+        
+        <span class="reading-rail__tick" style="top: 37%"></span>
+        
+        <span class="reading-rail__tick" style="top: 38%"></span>
+        
+        <span class="reading-rail__tick" style="top: 39%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 40%"><b>40</b></span>
+        
+        <span class="reading-rail__tick" style="top: 41%"></span>
+        
+        <span class="reading-rail__tick" style="top: 42%"></span>
+        
+        <span class="reading-rail__tick" style="top: 43%"></span>
+        
+        <span class="reading-rail__tick" style="top: 44%"></span>
+        
+        <span class="reading-rail__tick" style="top: 45%"></span>
+        
+        <span class="reading-rail__tick" style="top: 46%"></span>
+        
+        <span class="reading-rail__tick" style="top: 47%"></span>
+        
+        <span class="reading-rail__tick" style="top: 48%"></span>
+        
+        <span class="reading-rail__tick" style="top: 49%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 50%"><b>50</b></span>
+        
+        <span class="reading-rail__tick" style="top: 51%"></span>
+        
+        <span class="reading-rail__tick" style="top: 52%"></span>
+        
+        <span class="reading-rail__tick" style="top: 53%"></span>
+        
+        <span class="reading-rail__tick" style="top: 54%"></span>
+        
+        <span class="reading-rail__tick" style="top: 55%"></span>
+        
+        <span class="reading-rail__tick" style="top: 56%"></span>
+        
+        <span class="reading-rail__tick" style="top: 57%"></span>
+        
+        <span class="reading-rail__tick" style="top: 58%"></span>
+        
+        <span class="reading-rail__tick" style="top: 59%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 60%"><b>60</b></span>
+        
+        <span class="reading-rail__tick" style="top: 61%"></span>
+        
+        <span class="reading-rail__tick" style="top: 62%"></span>
+        
+        <span class="reading-rail__tick" style="top: 63%"></span>
+        
+        <span class="reading-rail__tick" style="top: 64%"></span>
+        
+        <span class="reading-rail__tick" style="top: 65%"></span>
+        
+        <span class="reading-rail__tick" style="top: 66%"></span>
+        
+        <span class="reading-rail__tick" style="top: 67%"></span>
+        
+        <span class="reading-rail__tick" style="top: 68%"></span>
+        
+        <span class="reading-rail__tick" style="top: 69%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 70%"><b>70</b></span>
+        
+        <span class="reading-rail__tick" style="top: 71%"></span>
+        
+        <span class="reading-rail__tick" style="top: 72%"></span>
+        
+        <span class="reading-rail__tick" style="top: 73%"></span>
+        
+        <span class="reading-rail__tick" style="top: 74%"></span>
+        
+        <span class="reading-rail__tick" style="top: 75%"></span>
+        
+        <span class="reading-rail__tick" style="top: 76%"></span>
+        
+        <span class="reading-rail__tick" style="top: 77%"></span>
+        
+        <span class="reading-rail__tick" style="top: 78%"></span>
+        
+        <span class="reading-rail__tick" style="top: 79%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 80%"><b>80</b></span>
+        
+        <span class="reading-rail__tick" style="top: 81%"></span>
+        
+        <span class="reading-rail__tick" style="top: 82%"></span>
+        
+        <span class="reading-rail__tick" style="top: 83%"></span>
+        
+        <span class="reading-rail__tick" style="top: 84%"></span>
+        
+        <span class="reading-rail__tick" style="top: 85%"></span>
+        
+        <span class="reading-rail__tick" style="top: 86%"></span>
+        
+        <span class="reading-rail__tick" style="top: 87%"></span>
+        
+        <span class="reading-rail__tick" style="top: 88%"></span>
+        
+        <span class="reading-rail__tick" style="top: 89%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 90%"><b>90</b></span>
+        
+        <span class="reading-rail__tick" style="top: 91%"></span>
+        
+        <span class="reading-rail__tick" style="top: 92%"></span>
+        
+        <span class="reading-rail__tick" style="top: 93%"></span>
+        
+        <span class="reading-rail__tick" style="top: 94%"></span>
+        
+        <span class="reading-rail__tick" style="top: 95%"></span>
+        
+        <span class="reading-rail__tick" style="top: 96%"></span>
+        
+        <span class="reading-rail__tick" style="top: 97%"></span>
+        
+        <span class="reading-rail__tick" style="top: 98%"></span>
+        
+        <span class="reading-rail__tick" style="top: 99%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 100%"><b>100</b></span>
+        
+      </div>
+      <span class="reading-rail__cursor" aria-hidden="true"></span>
+    </div>
+  </div>
+  <div class="reading-rail__hint"><span data-ui-lang="zh-CN">拖动刻度跳转 · 点击章节定位</span><span data-ui-lang="en">Drag the ruler · Click a chapter</span></div>
+</nav>
+
+
+  </aside>
+  
+</article>
+
+  </main>
+  
+<footer class="site-footer">
+  <div class="site-footer__inner">
+    <span class="site-footer__mark" aria-hidden="true"><svg viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" fill="currentColor"><rect x="5" y="1" width="2" height="10"/><rect x="1" y="5" width="10" height="2"/><rect x="3" y="3" width="1" height="1"/><rect x="8" y="3" width="1" height="1"/><rect x="3" y="8" width="1" height="1"/><rect x="8" y="8" width="1" height="1"/></svg></span>
+    <span>© 2025–2026 DoubleYe</span>
+    <span class="site-footer__links">
+      
+      
+      <a href="https://hexo.io" target="_blank" rel="noopener"><span data-ui-lang="zh-CN">由 Hexo 驱动</span><span data-ui-lang="en">Powered by Hexo</span></a>
+    </span>
+  </div>
+</footer>
+
+  
+<script src="/js/language.js"></script>
+
+  
+<script src="/js/background.js"></script>
+
+  
+<script src="/js/theme.js"></script>
+
+  
+<script src="/js/reading-progress.js"></script>
+
+</body>
+</html>
