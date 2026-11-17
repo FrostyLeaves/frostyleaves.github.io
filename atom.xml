@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="zh-CN">
+  <title>DoubleYe</title>
+  <subtitle>游戏开发者</subtitle>
+  <id>https://doubleye.me/blog/atom.xml</id>
+  <link href="https://doubleye.me/blog/"/>
+  <link href="https://doubleye.me/blog/atom.xml" rel="self" type="application/atom+xml"/>
+  <updated>2026-11-17T00:00:00.000Z</updated>
+  <author><name>DoubleYe</name></author>
+  <entry>
+    <title>透明度混合OIT介绍</title>
+    <id>https://doubleye.me/blog/2026/11/17/rendering-digest-2026-11-17/</id>
+    <link href="https://doubleye.me/blog/2026/11/17/rendering-digest-2026-11-17/"/>
+    <published>2026-11-17T00:00:00.000Z</published>
+    <updated>2026-11-17T00:00:00.000Z</updated>
+    <summary type="text">半透明渲染的顺序一直是个让人头疼的问题。常见做法是先绘制不透明物体，再将透明物体从远到近排序并进行 alpha 混合。这能处理许多常见场景，但相交物体在不同像素处的前后关系可能相反，物体级排序无法同时满足所有像素。 Depth peeling 在每一轮提取下一层透明片元，逐层处理遮挡关系。它需要重复绘制透明几何，层数越多，通常要执行的绘制和光栅化工作也越多。 顺序无关透明（OIT）提供了另一类思路：允许透明片元以任意顺序到达，再通过额外的数据结构或近似计算得到结果。下面重点介绍两种逐像素链表的组织方式，然后看看有限存储预算下的其他选择。</summary>
+    <category term="透明渲染"/>
+    <category term="OIT"/>
+    <category term="GPU 数据结构"/>
+    <category term="WebGPU"/>
+  </entry>
+  <entry>
+    <title>Nanite Dynamic Wind 植被风模拟</title>
+    <id>https://doubleye.me/blog/2026/11/16/rendering-digest-2026-11-16/</id>
+    <link href="https://doubleye.me/blog/2026/11/16/rendering-digest-2026-11-16/"/>
+    <published>2026-11-16T00:00:00.000Z</published>
+    <updated>2026-11-16T00:00:00.000Z</updated>
+    <summary type="text">植被风动画常用材质里的 World Position Offset（WPO）偏移顶点。用在 Nanite 植被上时，除了逐顶点计算，还要处理运动后的剔除边界：材质可以任意移动顶点，开发者只能按最大位移预留空间。包围盒扩大后，一些原本可以剔除的几何也会留下来。 UE 5.9 的 Dynamic Wind 在 GPU 上模拟植物骨骼，再由 Nanite Skinning 驱动网格。它根据植物几何估算受力参数，共享普通风动的模拟结果，并为受到局部作用的植物分配独立模拟。本文依据 UE 5.9 文档整理；插件目前仍为 Experimental。</summary>
+    <category term="Unreal Engine"/>
+    <category term="Nanite"/>
+    <category term="植被渲染"/>
+  </entry>
+  <entry>
+    <title>Nsight Graphics MCP 试用体验</title>
+    <id>https://doubleye.me/blog/2026/11/15/rendering-digest-2026-11-15/</id>
+    <link href="https://doubleye.me/blog/2026/11/15/rendering-digest-2026-11-15/"/>
+    <published>2026-11-15T00:00:00.000Z</published>
+    <updated>2026-11-15T00:00:00.000Z</updated>
+    <summary type="text">Nsight Graphics 2026.4 新增了 MCP Server，AI agent 可以直接调用 Nsight 的采集和查询接口，读取 GPU Trace、Graphics Capture 和 Aftermath 崩溃 dump。 本次试用的是 Nsight Graphics 2026.4.0，测试环境是 RTX 4070 Ti 和 Vulkan。测试对象包括几个瓶颈已知的小程序、已有项目的 capture，以及 Unity 的 GPU Trace。最明显的区别是两种接口模式提供的数据范围：Workflow 适合快速浏览，Native 才能覆盖按 pass 查询、源码热点和图形状态检查这些日常操作。</summary>
+    <category term="Nsight Graphics"/>
+    <category term="MCP"/>
+    <category term="GPU 性能分析"/>
+  </entry>
+  <entry>
+    <title>RenderDoc Graph Viewer 插件介绍</title>
+    <id>https://doubleye.me/blog/2026/06/18/renderdoc-graph-viewer/</id>
+    <link href="https://doubleye.me/blog/2026/06/18/renderdoc-graph-viewer/"/>
+    <published>2026-06-17T17:46:30.000Z</published>
+    <updated>2026-06-17T17:46:30.000Z</updated>
+    <summary type="text">RenderDoc Graph Viewer 是我做的一个 RenderDoc 插件，用于快速预览一帧渲染管线的结构，查看各个 Pass 的输入输出及其依赖关系。 它把 capture 里的 Pass、纹理和 Buffer 连成一张关系图，方便追踪资源由谁写入、被谁读取，也能帮助定位可能多余的输入和未被后续 Pass 使用的输出。这些关系可以作为排查线索，是否需要保留仍要结合资源的实际用途判断。 插件支持按 Debug Marker 展开子图、追踪同一资源的多次写入、归并重复节点，也可以从图中跳转到 RenderDoc 的事件和资源查看器。</summary>
+    <category term="RenderDoc"/>
+    <category term="图形工具"/>
+    <category term="开源项目"/>
+  </entry>
+  <entry>
+    <title>Vulkan Memory Allocator 笔记</title>
+    <id>https://doubleye.me/blog/2025/12/20/VulkanMemoryAllocator/</id>
+    <link href="https://doubleye.me/blog/2025/12/20/VulkanMemoryAllocator/"/>
+    <published>2025-12-20T15:00:00.000Z</published>
+    <updated>2025-12-20T15:00:00.000Z</updated>
+    <summary type="text">概述Vulkan Memory Allocator (VMA) 是由AMD的GPUOpen项目开发的开源C++库,旨在简化Vulkan应用程序中GPU内存管理的复杂性。它通过提供高层次的API接口,将原本需要开发者手动处理的内存块管理、内存类型选择、对齐要求等底层操作进行了封装,极大地降低了Vulkan内存管理的难度。 官方链接: GPUOpen VMA 主页 GitHub 仓库，本文基于 v3.3.0 版本 经典内存分配算法在深入TLSF之前,了解传统内存分配算法的原理和局限性很有必要。这些算法是计算机科学的基础,也是理解TLSF优势的前提。 顺序搜索算法这是最基础的动态内存分配算法,通过遍历空闲链表来查找合适的内存块。 First Fit (首次适应) 1234567891011算法原理:从空闲链表头部开始搜索,返回第一个足够大的空闲块伪代码:function first_fit(size): block = free_list.head while block != null: if block.size &gt;= size: return allocate(block, size)…</summary>
+    <category term="Vulkan"/>
+    <category term="算法"/>
+  </entry>
+</feed>
