@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN" data-palette="red" data-palette-pref="auto" data-background="sky" data-mode="day" data-mode-pref="day">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>RenderDoc Graph Viewer 插件介绍 · DoubleYe</title>
+  
+  <meta name="theme-color" content="#f0eee8">
+  <meta name="description" content="RenderDoc Graph Viewer 是我做的一个 RenderDoc 插件，用于快速预览一帧渲染管线的结构，查看各个 Pass 的输入输出及其依赖关系。 它把 capture 里的 Pass、纹理和 Buffer 连成一张关系图，方便追踪资源由谁写入、被谁读取，也能帮助定位可能多余的输入和未被后续 Pass 使用的输出。这些关系可以作为排查线索，是否需要保留仍要结合资源的实际用途判断。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="RenderDoc Graph Viewer 插件介绍">
+<meta property="og:url" content="https://frostyleaves.github.io/2026/06/18/renderdoc-graph-viewer/index.html">
+<meta property="og:site_name" content="DoubleYe">
+<meta property="og:description" content="RenderDoc Graph Viewer 是我做的一个 RenderDoc 插件，用于快速预览一帧渲染管线的结构，查看各个 Pass 的输入输出及其依赖关系。 它把 capture 里的 Pass、纹理和 Buffer 连成一张关系图，方便追踪资源由谁写入、被谁读取，也能帮助定位可能多余的输入和未被后续 Pass 使用的输出。这些关系可以作为排查线索，是否需要保留仍要结合资源的实际用途判断。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/FrostyLeaves/renderdoc-graph-viewer/08d3686966524342cbdc95bcf6d1a4d04a4fc776/docs/images/core-concepts.png">
+<meta property="og:image" content="https://raw.githubusercontent.com/FrostyLeaves/renderdoc-graph-viewer/08d3686966524342cbdc95bcf6d1a4d04a4fc776/docs/images/feat-scope-in.png">
+<meta property="og:image" content="https://raw.githubusercontent.com/FrostyLeaves/renderdoc-graph-viewer/08d3686966524342cbdc95bcf6d1a4d04a4fc776/docs/images/bundling.png">
+<meta property="article:published_time" content="2026-06-17T17:46:30.000Z">
+<meta property="article:modified_time" content="2026-06-17T17:46:30.000Z">
+<meta property="article:author" content="DoubleYe">
+<meta property="article:tag" content="RenderDoc">
+<meta property="article:tag" content="图形工具">
+<meta property="article:tag" content="开源项目">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/FrostyLeaves/renderdoc-graph-viewer/08d3686966524342cbdc95bcf6d1a4d04a4fc776/docs/images/core-concepts.png">
+  
+    <link rel="icon" href="/images/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" sizes="192x192" href="/images/favicon-192x192.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+  
+  
+  
+<link rel="stylesheet" href="/css/fonts.css">
+
+  
+<link rel="stylesheet" href="/css/main.css">
+
+  <style id="palette-css">:root,:root[data-palette="blue"]{--accent:#009dff;--bg-1:#009dff;--bg-2:#1f4f77;--bg-3:#1c2628}
+.tone-blue{--tone:#009dff}
+:root[data-palette="green"]{--accent:#4bc292;--bg-1:#4bc292;--bg-2:#1f5e4a;--bg-3:#1c2628}
+.tone-green{--tone:#4bc292}
+:root[data-palette="gold"]{--accent:#f3b958;--bg-1:#f3b958;--bg-2:#7e5a1e;--bg-3:#1c2628}
+.tone-gold{--tone:#f3b958}
+:root[data-palette="red"]{--accent:#fe5f55;--bg-1:#fe5f55;--bg-2:#6e2a26;--bg-3:#1c2628}
+.tone-red{--tone:#fe5f55}</style>
+  <style id="language-css">:root[lang="zh-CN"] [data-ui-lang]:not([data-ui-lang="zh-CN"]){display:none}
+:root[lang="en"] [data-ui-lang]:not([data-ui-lang="en"]){display:none}</style>
+  <script>
+    (function () {
+      // Keep reader preferences when upgrading from the theme's former name.
+      function migrate(storage, names) {
+        names.forEach(function (name) {
+          var key = 'drift-' + name;
+          if (storage.getItem(key) !== null) return;
+          var previous = storage.getItem('doubleye-' + name);
+          if (previous !== null) storage.setItem(key, previous);
+        });
+      }
+      try { migrate(localStorage, ['palette', 'background', 'mode']); } catch (e) { /* storage may be blocked */ }
+      try { migrate(sessionStorage, ['bg-time']); } catch (e) { /* storage may be blocked */ }
+      var root = document.documentElement;
+      var languages = ["zh-CN","en"], language = null;
+      try { language = localStorage.getItem('drift-language'); } catch (e) { /* storage may be blocked */ }
+      root.lang = languages.indexOf(language) >= 0 ? language : "zh-CN";
+      var names = ["blue","green","gold","red"], auto = 'red', pref = null;
+      try { pref = localStorage.getItem('drift-palette'); } catch (e) { pref = null; }
+      if (names.indexOf(pref) < 0) pref = 'auto';
+      root.setAttribute('data-palette', pref === 'auto' ? auto : pref);
+      root.setAttribute('data-palette-pref', pref);
+      var scenes = ["sky","ocean"], scene = null, mode = null;
+      try { scene = localStorage.getItem('drift-background'); mode = localStorage.getItem('drift-mode'); } catch (e) { scene = null; mode = null; }
+      if (scenes.indexOf(scene) < 0) scene = 'sky';
+      if (mode !== 'auto' && mode !== 'day' && mode !== 'night') mode = 'day';
+      root.setAttribute('data-mode-pref', mode);
+      if (mode === 'auto') mode = window.matchMedia && !window.matchMedia('(prefers-color-scheme: dark)').matches ? 'day' : 'night';
+      root.setAttribute('data-background', scene);
+      root.setAttribute('data-mode', mode);
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute('content', mode === 'day' ? '#f0eee8' : '#191a1c');
+    })();
+    window.__THEME = {
+      palettes: {"blue":{"colors":["#009dff","#1f4f77","#1c2628"],"accent":"#009dff"},"green":{"colors":["#4bc292","#1f5e4a","#1c2628"],"accent":"#4bc292"},"gold":{"colors":["#f3b958","#7e5a1e","#1c2628"],"accent":"#f3b958"},"red":{"colors":["#fe5f55","#6e2a26","#1c2628"],"accent":"#fe5f55"}},
+      auto: 'red',
+      labels: {"auto":"自动","toggle":"切换配色","copy":"复制","copied":"已复制","sceneToggle":"切换背景","scenes":{"sky":"天空","ocean":"海洋"},"modeToggle":"切换日夜","modes":{"auto":"自动","day":"日间","night":"夜间"},"blue":"湖蓝","green":"青翠","gold":"琥珀","red":"绯红"},
+      background: {"enable":true,"style":"sky","styles":["sky","ocean"],"mode":"day","speed":1,"fps":30,"pixel_filter":740},
+      juice: {"tilt":true,"wobble":true,"foil":"pixel-glass","text":"titles"},
+      i18n: {"languages":["zh-CN","en"],"default":"zh-CN","dictionaries":{"zh-CN":{"nav.home":"首页","nav.posts":"文章","nav.categories":"分类","nav.tags":"标签","nav.archives":"归档","language.toggle":"切换语言","language.name":"中文","language.short":"中","pagination":"翻页","hero.posts":"篇文章","hero.categories":"个分类","hero.tags":"个标签","post.navigation":"文章导航","post.toc":"目录","post.reading_progress":"阅读进度","post.reading_hint":"拖动刻度跳转 · 点击章节定位","post.updated":"更新于","post.words":"字","post.minutes":"分钟","post.prev":"上一篇","post.next":"下一篇","post.license_prefix":"本文采用","post.license_suffix":"许可","post.copy":"复制","post.copied":"已复制","post.scroll_down":"向下滚动","post.tags":"标签","archive.title":"归档","archive.total_prefix":"共","archive.total_suffix":"篇","category.title":"分类","tag.title":"标签","footer.powered":"由 Hexo 驱动","palette.toggle":"切换配色","palette.auto":"自动","palette.blue":"湖蓝","palette.green":"青翠","palette.gold":"琥珀","palette.red":"绯红","background.toggle":"切换背景","background.sky":"天空","background.ocean":"海洋","mode.toggle":"切换日夜","mode.auto":"自动","mode.day":"日间","mode.night":"夜间","error404.title":"页面不存在","error404.description":"你访问的页面可能已被移动或删除。","error404.home":"返回首页","skip":"跳到正文"},"en":{"nav.home":"Home","nav.posts":"Posts","nav.categories":"Categories","nav.tags":"Tags","nav.archives":"Archives","language.toggle":"Language","language.name":"English","language.short":"EN","pagination":"Pagination","hero.posts":"posts","hero.categories":"categories","hero.tags":"tags","post.navigation":"Post navigation","post.toc":"Contents","post.reading_progress":"Reading progress","post.reading_hint":"Drag the ruler · Click a chapter","post.updated":"Updated","post.words":"words","post.minutes":"min","post.prev":"Newer","post.next":"Older","post.license_prefix":"Licensed under","post.license_suffix":"","post.copy":"Copy","post.copied":"Copied","post.scroll_down":"Scroll down","post.tags":"Tags","archive.title":"Archives","archive.total_prefix":"","archive.total_suffix":"posts","category.title":"Categories","tag.title":"Tags","footer.powered":"Powered by Hexo","palette.toggle":"Palette","palette.auto":"auto","palette.blue":"Lake","palette.green":"Jade","palette.gold":"Amber","palette.red":"Crimson","background.toggle":"Backdrop","background.sky":"Sky","background.ocean":"Ocean","mode.toggle":"Day / night","mode.auto":"Auto","mode.day":"Day","mode.night":"Night","error404.title":"Page not found","error404.description":"The page you are looking for may have been moved or removed.","error404.home":"Back to home","skip":"Skip to content"}}}
+    };
+  </script>
+<meta name="generator" content="Hexo 8.1.1"></head>
+
+
+<body class="juice-tilt juice-wobble juice-foil text-titles" data-card-effect="pixel-glass">
+  <a class="skip-link" href="#main"><span data-ui-lang="zh-CN">跳到正文</span><span data-ui-lang="en">Skip to content</span></a>
+  <div class="backdrop" id="backdrop" aria-hidden="true"><canvas class="backdrop__canvas" id="backdrop-canvas"></canvas><canvas class="backdrop__snapshot" id="backdrop-snapshot"></canvas></div>
+  
+<header class="site-header" id="site-header">
+  <div class="site-header__inner">
+    <a class="site-brand px" href="/" aria-label="DoubleYe"><span class="w"><span class="ch" style="--i:0" aria-hidden="true">D</span><span class="ch" style="--i:1" aria-hidden="true">o</span><span class="ch" style="--i:2" aria-hidden="true">u</span><span class="ch" style="--i:3" aria-hidden="true">b</span><span class="ch" style="--i:4" aria-hidden="true">l</span><span class="ch" style="--i:5" aria-hidden="true">e</span><span class="ch" style="--i:6" aria-hidden="true">Y</span><span class="ch" style="--i:7" aria-hidden="true">e</span></span></a>
+    <nav class="site-nav" data-i18n-aria-label="nav.home" aria-label="首页">
+      
+        <a class="btn btn--nav px" href="/archives/"><span data-ui-lang="zh-CN">文章</span><span data-ui-lang="en">Posts</span></a>
+      
+        <a class="btn btn--nav px" href="/categories/"><span data-ui-lang="zh-CN">分类</span><span data-ui-lang="en">Categories</span></a>
+      
+        <a class="btn btn--nav px" href="/tags/"><span data-ui-lang="zh-CN">标签</span><span data-ui-lang="en">Tags</span></a>
+      
+        <a class="btn btn--nav px" href="/"><span data-ui-lang="zh-CN">首页</span><span data-ui-lang="en">Home</span></a>
+      
+      <div class="site-controls">
+      <button class="palette-toggle" id="palette-toggle" type="button" aria-label="切换配色: 自动 · 绯红" title="切换配色: 自动 · 绯红">
+        <span class="palette-toggle__disc" aria-hidden="true"></span>
+        <span class="palette-toggle__label px" id="palette-label"><span data-ui-lang="zh-CN">自动</span><span data-ui-lang="en">auto</span></span>
+      </button>
+      
+      <button class="scene-toggle" id="background-toggle" type="button" aria-label="切换背景" title="切换背景: 天空">
+        <span class="scene-toggle__icon" aria-hidden="true">
+          <svg class="scene-icon scene-icon--sky" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="2" y="0" width="1" height="5"/><rect x="0" y="2" width="5" height="1"/><rect x="1" y="1" width="1" height="1"/><rect x="3" y="1" width="1" height="1"/><rect x="1" y="3" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="6" y="5" width="4" height="1"/><rect x="5" y="6" width="6" height="1"/><rect x="4" y="7" width="8" height="1"/><rect x="3" y="8" width="9" height="2"/></svg>
+          <svg class="scene-icon scene-icon--ocean" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="1" y="2" width="3" height="1"/><rect x="6" y="2" width="3" height="1"/><rect x="0" y="3" width="1" height="1"/><rect x="4" y="3" width="2" height="1"/><rect x="9" y="3" width="2" height="1"/><rect x="1" y="6" width="3" height="1"/><rect x="6" y="6" width="3" height="1"/><rect x="0" y="7" width="1" height="1"/><rect x="4" y="7" width="2" height="1"/><rect x="9" y="7" width="2" height="1"/><rect x="1" y="10" width="3" height="1"/><rect x="6" y="10" width="3" height="1"/><rect x="0" y="11" width="1" height="1"/><rect x="4" y="11" width="2" height="1"/><rect x="9" y="11" width="2" height="1"/></svg>
+        </span>
+        <span class="scene-toggle__label px" id="background-label"><span data-ui-lang="zh-CN">天空</span><span data-ui-lang="en">Sky</span></span>
+      </button>
+      
+      <button class="scene-toggle mode-toggle" id="mode-toggle" type="button" aria-label="切换日夜" title="切换日夜: 日间">
+        <span class="scene-toggle__icon" aria-hidden="true">
+          <svg class="mode-icon mode-icon--auto" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="1" y="1" width="10" height="1"/><rect x="0" y="2" width="1" height="5"/><rect x="11" y="2" width="1" height="5"/><rect x="1" y="7" width="10" height="1"/><rect x="5" y="8" width="2" height="2"/><rect x="3" y="10" width="6" height="1"/></svg>
+          <svg class="mode-icon mode-icon--night" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="4" y="1" width="4" height="1"/><rect x="3" y="2" width="2" height="1"/><rect x="2" y="3" width="2" height="2"/><rect x="2" y="5" width="2" height="2"/><rect x="2" y="7" width="2" height="2"/><rect x="3" y="9" width="2" height="1"/><rect x="4" y="10" width="4" height="1"/><rect x="8" y="9" width="2" height="1"/><rect x="8" y="2" width="2" height="1"/></svg>
+          <svg class="mode-icon mode-icon--day" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="4" y="4" width="4" height="4"/><rect x="5" y="0" width="2" height="2"/><rect x="5" y="10" width="2" height="2"/><rect x="0" y="5" width="2" height="2"/><rect x="10" y="5" width="2" height="2"/><rect x="1" y="1" width="2" height="1"/><rect x="1" y="2" width="1" height="1"/><rect x="9" y="1" width="2" height="1"/><rect x="10" y="2" width="1" height="1"/><rect x="1" y="9" width="1" height="1"/><rect x="1" y="10" width="2" height="1"/><rect x="10" y="9" width="1" height="1"/><rect x="9" y="10" width="2" height="1"/></svg>
+        </span>
+        <span class="scene-toggle__label px" id="mode-label"><span data-ui-lang="zh-CN">日间</span><span data-ui-lang="en">Day</span></span>
+      </button>
+      
+      <button class="language-toggle px" id="language-toggle" type="button" title="切换语言" aria-label="切换语言"><span data-ui-lang="zh-CN">中</span><span data-ui-lang="en">EN</span></button>
+      
+      </div>
+    </nav>
+  </div>
+</header>
+
+  <main id="main" class="site-main">
+    
+<article class="post-layout has-toc" itemscope itemtype="https://schema.org/BlogPosting">
+  
+  <div class="reading-mobile" hidden role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-i18n-aria-label="post.reading_progress" aria-label="阅读进度"><span></span></div>
+  
+  <div class="post container">
+    <header class="post-header">
+      <h1 class="post-title px title-anim" itemprop="headline" aria-label="RenderDoc Graph Viewer 插件介绍"><span class="w"><span class="ch" style="--i:0" aria-hidden="true">R</span><span class="ch" style="--i:1" aria-hidden="true">e</span><span class="ch" style="--i:2" aria-hidden="true">n</span><span class="ch" style="--i:3" aria-hidden="true">d</span><span class="ch" style="--i:4" aria-hidden="true">e</span><span class="ch" style="--i:5" aria-hidden="true">r</span><span class="ch" style="--i:6" aria-hidden="true">D</span><span class="ch" style="--i:7" aria-hidden="true">o</span><span class="ch" style="--i:8" aria-hidden="true">c</span></span> <span class="w"><span class="ch" style="--i:9" aria-hidden="true">G</span><span class="ch" style="--i:10" aria-hidden="true">r</span><span class="ch" style="--i:11" aria-hidden="true">a</span><span class="ch" style="--i:12" aria-hidden="true">p</span><span class="ch" style="--i:13" aria-hidden="true">h</span></span> <span class="w"><span class="ch" style="--i:14" aria-hidden="true">V</span><span class="ch" style="--i:15" aria-hidden="true">i</span><span class="ch" style="--i:16" aria-hidden="true">e</span><span class="ch" style="--i:17" aria-hidden="true">w</span><span class="ch" style="--i:18" aria-hidden="true">e</span><span class="ch" style="--i:19" aria-hidden="true">r</span></span> <span class="ch" style="--i:20" aria-hidden="true">插</span><span class="ch" style="--i:21" aria-hidden="true">件</span><span class="ch" style="--i:22" aria-hidden="true">介</span><span class="ch" style="--i:23" aria-hidden="true">绍</span></h1>
+      
+<div class="post-meta">
+  <time class="badge badge--date px" datetime="2026-06-17T17:46:30.000Z">2026-06-18</time>
+  
+    <a class="seal tone-red px" href="/categories/%E6%B8%B8%E6%88%8F%E5%BC%95%E6%93%8E/"><span class="seal__dot" aria-hidden="true"></span>游戏引擎</a>
+  
+  <span class="badge badge--blue px post-meta__words">1,581 <span data-ui-lang="zh-CN">字</span><span data-ui-lang="en">words</span></span>
+  <span class="badge badge--red px">4 <span data-ui-lang="zh-CN">分钟</span><span data-ui-lang="en">min</span></span>
+  
+</div>
+
+    </header>
+
+    
+    <details class="toc-mobile panel">
+      <summary class="px"><span data-ui-lang="zh-CN">目录</span><span data-ui-lang="en">Contents</span><span class="toc-mobile__percent" data-reading-percent aria-hidden="true"></span></summary>
+      
+
+<nav class="toc panel" data-i18n-aria-label="post.toc" aria-label="目录">
+  <div class="toc__title px"><span data-ui-lang="zh-CN">目录</span><span data-ui-lang="en">Contents</span></div>
+  <ol class="toc-list"><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#Pass-%E4%B8%8E%E8%B5%84%E6%BA%90%E5%85%B3%E7%B3%BB"><span class="toc-list-text">Pass 与资源关系</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%90%8C%E4%B8%80%E8%B5%84%E6%BA%90%E7%9A%84%E5%A4%9A%E6%AC%A1%E5%86%99%E5%85%A5"><span class="toc-list-text">同一资源的多次写入</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%AD%90%E5%9B%BE%E4%B8%8E%E4%BC%A0%E9%80%81%E9%97%A8"><span class="toc-list-text">子图与传送门</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E9%87%8D%E5%A4%8D%E8%8A%82%E7%82%B9%E5%BD%92%E5%B9%B6"><span class="toc-list-text">重复节点归并</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E8%AF%BB%E5%86%99%E7%8A%B6%E6%80%81%E4%B8%8E%E6%9C%AA%E4%BD%BF%E7%94%A8%E7%BB%91%E5%AE%9A"><span class="toc-list-text">读写状态与未使用绑定</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E4%B8%8E-RenderDoc-%E8%81%94%E5%8A%A8"><span class="toc-list-text">与 RenderDoc 联动</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%AE%89%E8%A3%85"><span class="toc-list-text">安装</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E7%89%88%E6%9C%AC%E4%B8%8E%E5%9B%BE%E6%BA%90"><span class="toc-list-text">版本与图源</span></a></li></ol>
+</nav>
+
+
+    </details>
+    
+
+    <div class="post-body panel">
+      <div class="post-content" id="drift-post-content" itemprop="articleBody" lang="zh-CN">
+        <p><a target="_blank" rel="noopener" href="https://github.com/FrostyLeaves/renderdoc-graph-viewer">RenderDoc Graph Viewer</a> 是我做的一个 RenderDoc 插件，用于快速预览一帧渲染管线的结构，查看各个 Pass 的输入输出及其依赖关系。</p>
+<p>它把 capture 里的 Pass、纹理和 Buffer 连成一张关系图，方便追踪资源由谁写入、被谁读取，也能帮助定位可能多余的输入和未被后续 Pass 使用的输出。这些关系可以作为排查线索，是否需要保留仍要结合资源的实际用途判断。</p>
+<p>插件支持按 Debug Marker 展开子图、追踪同一资源的多次写入、归并重复节点，也可以从图中跳转到 RenderDoc 的事件和资源查看器。</p>
+<span id="more"></span>
+
+<h2 id="Pass-与资源关系"><a href="#Pass-与资源关系" class="headerlink" title="Pass 与资源关系"></a>Pass 与资源关系</h2><p>图中的 Pass 和资源交替排列。红色连线表示 Pass 写入资源，绿色连线表示 Pass 读取资源。Graphics、Compute、拷贝和 Present 等操作按类别显示，资源则区分颜色附件、深度附件、Buffer 和 Swapchain 等类型。</p>
+<p>沿着连线可以追踪一份中间结果的去向。例如 GBuffer 写出的纹理被 Lighting 读取，Lighting 再把 Scene Color 交给后处理。纹理节点上的眼睛按钮可以请求缩略图，便于在关系图里确认中间结果。</p>
+<p>这张图根据 capture 中的事件、资源使用记录和管线状态生成。它提供 frame-graph 风格的预览，不要求引擎本身使用某一种 Render Graph 框架。</p>
+<h2 id="同一资源的多次写入"><a href="#同一资源的多次写入" class="headerlink" title="同一资源的多次写入"></a>同一资源的多次写入</h2><p>一张 Render Target 在一帧中可能被多个 Pass 先后修改。只画一个资源节点，会把不同时间的读写连到一起，难以区分一次读取对应哪次写入。</p>
+<p>Graph Viewer 按写入阶段拆分资源节点，并用版本编号区分。读取连线连接到它所消费的写入版本。选中一个版本时，同一资源的其他版本也会描边，方便沿着图查看它的变化。</p>
+<p><img loading="lazy" decoding="async" src="https://raw.githubusercontent.com/FrostyLeaves/renderdoc-graph-viewer/08d3686966524342cbdc95bcf6d1a4d04a4fc776/docs/images/core-concepts.png" alt="GBuffer Albedo 的两个写入版本"></p>
+<p>图中 GBuffer 先写入 Albedo 的第一个版本，Decals 读取并修改它，Lighting 使用第二个版本。资源拆分后，读写顺序可以从左向右展开。这里的版本属于图的展示结构，不会额外分配 GPU 纹理。</p>
+<h2 id="子图与传送门"><a href="#子图与传送门" class="headerlink" title="子图与传送门"></a>子图与传送门</h2><p>整帧的所有 Pass 平铺在一起，节点和连线会很多。插件利用 RenderDoc 的 Debug Marker 层级，把一个标记区域收进 Sub-graph 节点。双击节点后，可以查看该区域内部的 Pass 和资源。</p>
+<p>子图也需要保留与外部的联系。当前区域使用的外部输入带有斜线背景，相关的上游或下游子图则以 Portal 节点显示。双击 Portal 可以跳到对应子图，通过面包屑和返回按钮继续导航。</p>
+<p><img loading="lazy" decoding="async" src="https://raw.githubusercontent.com/FrostyLeaves/renderdoc-graph-viewer/08d3686966524342cbdc95bcf6d1a4d04a4fc776/docs/images/feat-scope-in.png" alt="Scene Rendering 子图与外部输入输出"></p>
+<p>上图只展开 Scene Rendering。左侧 GBuffer 和 Shadows 提供输入，右侧 Post FX 消费输出。查看 Lighting 的读写关系时，外部区域不必全部展开，也能保留数据从哪里来、到哪里去的信息。</p>
+<h2 id="重复节点归并"><a href="#重复节点归并" class="headerlink" title="重复节点归并"></a>重复节点归并</h2><p>连续的同类操作可以归并成一个节点，减少图中的重复内容。归并节点会列出成员，双击成员行仍能跳到对应位置。成员超过 24 项时，列表会折叠。</p>
+<p><img loading="lazy" decoding="async" src="https://raw.githubusercontent.com/FrostyLeaves/renderdoc-graph-viewer/08d3686966524342cbdc95bcf6d1a4d04a4fc776/docs/images/bundling.png" alt="连续拷贝操作归并为一个节点"></p>
+<p>归并采用启发式判断，不能只看名字相似。节点需要同时满足读写连接结构和类别一致、名称结构相似、数量至少为 3、提交顺序连续，并且涉及相同的资源版本。图中的 18 次连续 <code>CopyBufferRegion()</code> 因而显示为一个 <code>×18</code> 节点。</p>
+<h2 id="读写状态与未使用绑定"><a href="#读写状态与未使用绑定" class="headerlink" title="读写状态与未使用绑定"></a>读写状态与未使用绑定</h2><p>深度附件绑定到 Pass 上时，可能只参与深度测试，也可能同时写入。插件针对不同图形 API 解析相应的管线状态，把深度附件的访问区分为读取、写入或读写，避免把只读深度的 Pass 画成新的写入者。</p>
+<p>Shader 资源也有类似情况。插件可以进一步分析资源访问，对能够确定的绑定细化读写方向。未能识别的情况继续保留 RenderDoc 提供的保守结果。</p>
+<p>可选的未使用绑定检测会把已绑定、但能确认未被 Shader 使用的读边画成虚线。这个标记用于检查多余绑定，不代表每一条实线都已经证明发生了实际采样。默认资源使用记录仍可能包含绑定但未使用的资源。</p>
+<h2 id="与-RenderDoc-联动"><a href="#与-RenderDoc-联动" class="headerlink" title="与 RenderDoc 联动"></a>与 RenderDoc 联动</h2><p>图形窗口保留了继续查看事件和资源的入口：</p>
+<ul>
+<li>点击 Pass 会把 RenderDoc 的当前事件切到该节点的最后一个事件。</li>
+<li>双击纹理节点会打开 Texture Viewer。其他资源可进入 Resource Inspector。</li>
+<li>双击归并节点中的成员行可以定位具体事件。</li>
+<li>点击纹理节点的眼睛按钮按需生成缩略图。部分纹理格式可能无法预览。</li>
+</ul>
+<p>显示选项、节点归并和资源候选范围集中在配置面板中，修改后通过 Apply 应用。配置保存在 <code>%APPDATA%\qrenderdoc\renderdoc_graph_viewer.json</code>，下次打开时可以沿用。</p>
+<h2 id="安装"><a href="#安装" class="headerlink" title="安装"></a>安装</h2><p>插件要求官方构建的 RenderDoc 1.33 或更新版本，需要其中捆绑的 PySide2。</p>
+<ol>
+<li>从<a target="_blank" rel="noopener" href="https://github.com/FrostyLeaves/renderdoc-graph-viewer">项目仓库</a>下载代码，把 <code>renderdoc_graph_viewer</code> 文件夹复制到 <code>%APPDATA%\qrenderdoc\extensions</code>。</li>
+<li>确认目录结构为 <code>extensions\renderdoc_graph_viewer\extension.json</code>，避免多套一层仓库目录。</li>
+<li>打开 RenderDoc 的 <strong>Tools → Manage Extensions</strong>，勾选 <strong>renderdoc-graph-viewer</strong>。需要自动加载时勾选 Always Load。</li>
+<li>加载 capture，然后打开 <strong>Window → Graph Viewer</strong>。窗口会自动解析当前 capture。</li>
+</ol>
+<p>项目已测试 Direct3D 11、Direct3D 12 和 Vulkan，OpenGL 尚未测试。依赖关系目前以整张纹理或整个 Buffer 为单位，不区分 mip、slice 等子资源。子图层级来自 capture 中的 Debug Marker，标记的组织方式也会影响浏览体验。</p>
+<p>插件采用 MIT 许可，代码与使用说明均在 <a target="_blank" rel="noopener" href="https://github.com/FrostyLeaves/renderdoc-graph-viewer">GitHub 仓库</a>中。</p>
+<h2 id="版本与图源"><a href="#版本与图源" class="headerlink" title="版本与图源"></a>版本与图源</h2><p>本文按<a target="_blank" rel="noopener" href="https://github.com/FrostyLeaves/renderdoc-graph-viewer/commit/beba02bb5314ac371500c73dfe6d73a741d38b84">仓库初始提交</a>的时间归档，即北京时间 2026 年 6 月 18 日 01:46:30。功能和配图依据后续的 <a target="_blank" rel="noopener" href="https://github.com/FrostyLeaves/renderdoc-graph-viewer/tree/08d3686966524342cbdc95bcf6d1a4d04a4fc776">0.0.5 版本代码与文档</a>，不代表初始提交已包含上述全部功能。文中配图来自该版本仓库的 <code>docs/images</code>。</p>
+
+      </div>
+      
+        <p class="post-license">
+          <span data-ui-lang="zh-CN">本文采用</span><span data-ui-lang="en">Licensed under</span>
+          <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="license noopener">CC BY-NC 4.0</a>
+          <span data-ui-lang="zh-CN">许可</span><span data-ui-lang="en"></span>
+        </p>
+      
+    </div>
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a class="chip px" href="/tags/RenderDoc/">#RenderDoc</a>
+          
+            <a class="chip px" href="/tags/%E5%9B%BE%E5%BD%A2%E5%B7%A5%E5%85%B7/">#图形工具</a>
+          
+            <a class="chip px" href="/tags/%E5%BC%80%E6%BA%90%E9%A1%B9%E7%9B%AE/">#开源项目</a>
+          
+        </div>
+      
+      
+      <nav class="post-nav" data-i18n-aria-label="post.navigation" aria-label="文章导航">
+        
+          <a class="post-nav__item post-nav__prev card" data-tilt href="/2026/11/15/rendering-digest-2026-11-15/">
+            <span class="card__inner">
+              <span class="post-nav__label px"><span data-ui-lang="zh-CN">上一篇</span><span data-ui-lang="en">Newer</span> · 2026-11-15</span>
+              <span class="post-nav__title">Nsight Graphics MCP 试用体验</span>
+              <span class="card__foil" aria-hidden="true"></span>
+            </span>
+          </a>
+        
+        
+          <a class="post-nav__item post-nav__next card" data-tilt href="/2025/12/20/VulkanMemoryAllocator/">
+            <span class="card__inner">
+              <span class="post-nav__label px"><span data-ui-lang="zh-CN">下一篇</span><span data-ui-lang="en">Older</span> · 2025-12-20</span>
+              <span class="post-nav__title">Vulkan Memory Allocator 笔记</span>
+              <span class="card__foil" aria-hidden="true"></span>
+            </span>
+          </a>
+        
+      </nav>
+      
+    </footer>
+
+    
+
+<section class="comments panel" id="comments"
+  data-repo="FrostyLeaves/frostyleaves.github.io"
+  data-issue-term="og:title"
+  data-label="utterances"></section>
+
+
+  </div>
+
+  
+  <aside class="post-aside">
+    
+
+<nav class="reading-rail" data-i18n-aria-label="post.toc" aria-label="目录">
+  <div class="reading-rail__head px">
+    <span><span data-ui-lang="zh-CN">目录</span><span data-ui-lang="en">Contents</span></span>
+    <span class="reading-rail__percent" data-reading-percent aria-hidden="true">000%</span>
+  </div>
+  <div class="reading-rail__stage">
+    <div class="reading-rail__chapters"><ol class="toc-list"><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#Pass-%E4%B8%8E%E8%B5%84%E6%BA%90%E5%85%B3%E7%B3%BB"><span class="toc-list-text">Pass 与资源关系</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%90%8C%E4%B8%80%E8%B5%84%E6%BA%90%E7%9A%84%E5%A4%9A%E6%AC%A1%E5%86%99%E5%85%A5"><span class="toc-list-text">同一资源的多次写入</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%AD%90%E5%9B%BE%E4%B8%8E%E4%BC%A0%E9%80%81%E9%97%A8"><span class="toc-list-text">子图与传送门</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E9%87%8D%E5%A4%8D%E8%8A%82%E7%82%B9%E5%BD%92%E5%B9%B6"><span class="toc-list-text">重复节点归并</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E8%AF%BB%E5%86%99%E7%8A%B6%E6%80%81%E4%B8%8E%E6%9C%AA%E4%BD%BF%E7%94%A8%E7%BB%91%E5%AE%9A"><span class="toc-list-text">读写状态与未使用绑定</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E4%B8%8E-RenderDoc-%E8%81%94%E5%8A%A8"><span class="toc-list-text">与 RenderDoc 联动</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%AE%89%E8%A3%85"><span class="toc-list-text">安装</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E7%89%88%E6%9C%AC%E4%B8%8E%E5%9B%BE%E6%BA%90"><span class="toc-list-text">版本与图源</span></a></li></ol></div>
+    <div class="reading-rail__ruler" role="scrollbar" tabindex="0" aria-controls="drift-post-content" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-i18n-aria-label="post.reading_progress" aria-label="阅读进度">
+      <div class="reading-rail__ticks" aria-hidden="true">
+        
+        <span class="reading-rail__tick is-major" style="top: 0%"><b>0</b></span>
+        
+        <span class="reading-rail__tick" style="top: 1%"></span>
+        
+        <span class="reading-rail__tick" style="top: 2%"></span>
+        
+        <span class="reading-rail__tick" style="top: 3%"></span>
+        
+        <span class="reading-rail__tick" style="top: 4%"></span>
+        
+        <span class="reading-rail__tick" style="top: 5%"></span>
+        
+        <span class="reading-rail__tick" style="top: 6%"></span>
+        
+        <span class="reading-rail__tick" style="top: 7%"></span>
+        
+        <span class="reading-rail__tick" style="top: 8%"></span>
+        
+        <span class="reading-rail__tick" style="top: 9%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 10%"><b>10</b></span>
+        
+        <span class="reading-rail__tick" style="top: 11%"></span>
+        
+        <span class="reading-rail__tick" style="top: 12%"></span>
+        
+        <span class="reading-rail__tick" style="top: 13%"></span>
+        
+        <span class="reading-rail__tick" style="top: 14%"></span>
+        
+        <span class="reading-rail__tick" style="top: 15%"></span>
+        
+        <span class="reading-rail__tick" style="top: 16%"></span>
+        
+        <span class="reading-rail__tick" style="top: 17%"></span>
+        
+        <span class="reading-rail__tick" style="top: 18%"></span>
+        
+        <span class="reading-rail__tick" style="top: 19%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 20%"><b>20</b></span>
+        
+        <span class="reading-rail__tick" style="top: 21%"></span>
+        
+        <span class="reading-rail__tick" style="top: 22%"></span>
+        
+        <span class="reading-rail__tick" style="top: 23%"></span>
+        
+        <span class="reading-rail__tick" style="top: 24%"></span>
+        
+        <span class="reading-rail__tick" style="top: 25%"></span>
+        
+        <span class="reading-rail__tick" style="top: 26%"></span>
+        
+        <span class="reading-rail__tick" style="top: 27%"></span>
+        
+        <span class="reading-rail__tick" style="top: 28%"></span>
+        
+        <span class="reading-rail__tick" style="top: 29%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 30%"><b>30</b></span>
+        
+        <span class="reading-rail__tick" style="top: 31%"></span>
+        
+        <span class="reading-rail__tick" style="top: 32%"></span>
+        
+        <span class="reading-rail__tick" style="top: 33%"></span>
+        
+        <span class="reading-rail__tick" style="top: 34%"></span>
+        
+        <span class="reading-rail__tick" style="top: 35%"></span>
+        
+        <span class="reading-rail__tick" style="top: 36%"></span>
+        
+        <span class="reading-rail__tick" style="top: 37%"></span>
+        
+        <span class="reading-rail__tick" style="top: 38%"></span>
+        
+        <span class="reading-rail__tick" style="top: 39%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 40%"><b>40</b></span>
+        
+        <span class="reading-rail__tick" style="top: 41%"></span>
+        
+        <span class="reading-rail__tick" style="top: 42%"></span>
+        
+        <span class="reading-rail__tick" style="top: 43%"></span>
+        
+        <span class="reading-rail__tick" style="top: 44%"></span>
+        
+        <span class="reading-rail__tick" style="top: 45%"></span>
+        
+        <span class="reading-rail__tick" style="top: 46%"></span>
+        
+        <span class="reading-rail__tick" style="top: 47%"></span>
+        
+        <span class="reading-rail__tick" style="top: 48%"></span>
+        
+        <span class="reading-rail__tick" style="top: 49%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 50%"><b>50</b></span>
+        
+        <span class="reading-rail__tick" style="top: 51%"></span>
+        
+        <span class="reading-rail__tick" style="top: 52%"></span>
+        
+        <span class="reading-rail__tick" style="top: 53%"></span>
+        
+        <span class="reading-rail__tick" style="top: 54%"></span>
+        
+        <span class="reading-rail__tick" style="top: 55%"></span>
+        
+        <span class="reading-rail__tick" style="top: 56%"></span>
+        
+        <span class="reading-rail__tick" style="top: 57%"></span>
+        
+        <span class="reading-rail__tick" style="top: 58%"></span>
+        
+        <span class="reading-rail__tick" style="top: 59%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 60%"><b>60</b></span>
+        
+        <span class="reading-rail__tick" style="top: 61%"></span>
+        
+        <span class="reading-rail__tick" style="top: 62%"></span>
+        
+        <span class="reading-rail__tick" style="top: 63%"></span>
+        
+        <span class="reading-rail__tick" style="top: 64%"></span>
+        
+        <span class="reading-rail__tick" style="top: 65%"></span>
+        
+        <span class="reading-rail__tick" style="top: 66%"></span>
+        
+        <span class="reading-rail__tick" style="top: 67%"></span>
+        
+        <span class="reading-rail__tick" style="top: 68%"></span>
+        
+        <span class="reading-rail__tick" style="top: 69%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 70%"><b>70</b></span>
+        
+        <span class="reading-rail__tick" style="top: 71%"></span>
+        
+        <span class="reading-rail__tick" style="top: 72%"></span>
+        
+        <span class="reading-rail__tick" style="top: 73%"></span>
+        
+        <span class="reading-rail__tick" style="top: 74%"></span>
+        
+        <span class="reading-rail__tick" style="top: 75%"></span>
+        
+        <span class="reading-rail__tick" style="top: 76%"></span>
+        
+        <span class="reading-rail__tick" style="top: 77%"></span>
+        
+        <span class="reading-rail__tick" style="top: 78%"></span>
+        
+        <span class="reading-rail__tick" style="top: 79%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 80%"><b>80</b></span>
+        
+        <span class="reading-rail__tick" style="top: 81%"></span>
+        
+        <span class="reading-rail__tick" style="top: 82%"></span>
+        
+        <span class="reading-rail__tick" style="top: 83%"></span>
+        
+        <span class="reading-rail__tick" style="top: 84%"></span>
+        
+        <span class="reading-rail__tick" style="top: 85%"></span>
+        
+        <span class="reading-rail__tick" style="top: 86%"></span>
+        
+        <span class="reading-rail__tick" style="top: 87%"></span>
+        
+        <span class="reading-rail__tick" style="top: 88%"></span>
+        
+        <span class="reading-rail__tick" style="top: 89%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 90%"><b>90</b></span>
+        
+        <span class="reading-rail__tick" style="top: 91%"></span>
+        
+        <span class="reading-rail__tick" style="top: 92%"></span>
+        
+        <span class="reading-rail__tick" style="top: 93%"></span>
+        
+        <span class="reading-rail__tick" style="top: 94%"></span>
+        
+        <span class="reading-rail__tick" style="top: 95%"></span>
+        
+        <span class="reading-rail__tick" style="top: 96%"></span>
+        
+        <span class="reading-rail__tick" style="top: 97%"></span>
+        
+        <span class="reading-rail__tick" style="top: 98%"></span>
+        
+        <span class="reading-rail__tick" style="top: 99%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 100%"><b>100</b></span>
+        
+      </div>
+      <span class="reading-rail__cursor" aria-hidden="true"></span>
+    </div>
+  </div>
+  <div class="reading-rail__hint"><span data-ui-lang="zh-CN">拖动刻度跳转 · 点击章节定位</span><span data-ui-lang="en">Drag the ruler · Click a chapter</span></div>
+</nav>
+
+
+  </aside>
+  
+</article>
+
+  </main>
+  
+<footer class="site-footer">
+  <div class="site-footer__inner">
+    <span class="site-footer__mark" aria-hidden="true"><svg viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" fill="currentColor"><rect x="5" y="1" width="2" height="10"/><rect x="1" y="5" width="10" height="2"/><rect x="3" y="3" width="1" height="1"/><rect x="8" y="3" width="1" height="1"/><rect x="3" y="8" width="1" height="1"/><rect x="8" y="8" width="1" height="1"/></svg></span>
+    <span>© 2025–2026 DoubleYe</span>
+    <span class="site-footer__links">
+      
+      
+      <a href="https://hexo.io" target="_blank" rel="noopener"><span data-ui-lang="zh-CN">由 Hexo 驱动</span><span data-ui-lang="en">Powered by Hexo</span></a>
+    </span>
+  </div>
+</footer>
+
+  
+<script src="/js/language.js"></script>
+
+  
+<script src="/js/background.js"></script>
+
+  
+<script src="/js/theme.js"></script>
+
+  
+<script src="/js/reading-progress.js"></script>
+
+</body>
+</html>
