@@ -16,7 +16,7 @@
 <meta property="og:description" content="半透明渲染的顺序一直是个让人头疼的问题。常见做法是先绘制不透明物体，再将透明物体从远到近排序并进行 alpha 混合。这能处理许多常见场景，但相交物体在不同像素处的前后关系可能相反，物体级排序无法同时满足所有像素。 Depth peeling 在每一轮提取下一层透明片元，逐层处理遮挡关系。它需要重复绘制透明几何，层数越多，通常要执行的绘制和光栅化工作也越多。 顺序无关透明（OIT）提供了另一类思路">
 <meta property="og:locale" content="zh_CN">
 <meta property="article:published_time" content="2026-11-17T00:00:00.000Z">
-<meta property="article:modified_time" content="2026-11-17T12:33:52.566Z">
+<meta property="article:modified_time" content="2026-11-18T02:42:02.427Z">
 <meta property="article:author" content="DoubleYe">
 <meta property="article:tag" content="GPU 数据结构">
 <meta property="article:tag" content="OIT">
@@ -87,8 +87,7 @@
       i18n: {"languages":["zh-CN","en"],"default":"zh-CN","dictionaries":{"zh-CN":{"nav.home":"首页","nav.posts":"文章","nav.categories":"分类","nav.tags":"标签","nav.archives":"归档","language.toggle":"切换语言","language.name":"中文","language.short":"中","pagination":"翻页","hero.posts":"篇文章","hero.categories":"个分类","hero.tags":"个标签","post.navigation":"文章导航","post.toc":"目录","post.reading_progress":"阅读进度","post.reading_hint":"拖动刻度跳转 · 点击章节定位","post.updated":"更新于","post.words":"字","post.minutes":"分钟","post.prev":"上一篇","post.next":"下一篇","post.license_prefix":"本文采用","post.license_suffix":"许可","post.copy":"复制","post.copied":"已复制","post.scroll_down":"向下滚动","post.tags":"标签","archive.title":"归档","archive.total_prefix":"共","archive.total_suffix":"篇","category.title":"分类","tag.title":"标签","footer.powered":"由 Hexo 驱动","palette.toggle":"切换配色","palette.auto":"自动","palette.blue":"湖蓝","palette.green":"青翠","palette.gold":"琥珀","palette.red":"绯红","background.toggle":"切换背景","background.sky":"天空","background.ocean":"海洋","mode.toggle":"切换日夜","mode.auto":"自动","mode.day":"日间","mode.night":"夜间","error404.title":"页面不存在","error404.description":"你访问的页面可能已被移动或删除。","error404.home":"返回首页","skip":"跳到正文"},"en":{"nav.home":"Home","nav.posts":"Posts","nav.categories":"Categories","nav.tags":"Tags","nav.archives":"Archives","language.toggle":"Language","language.name":"English","language.short":"EN","pagination":"Pagination","hero.posts":"posts","hero.categories":"categories","hero.tags":"tags","post.navigation":"Post navigation","post.toc":"Contents","post.reading_progress":"Reading progress","post.reading_hint":"Drag the ruler · Click a chapter","post.updated":"Updated","post.words":"words","post.minutes":"min","post.prev":"Newer","post.next":"Older","post.license_prefix":"Licensed under","post.license_suffix":"","post.copy":"Copy","post.copied":"Copied","post.scroll_down":"Scroll down","post.tags":"Tags","archive.title":"Archives","archive.total_prefix":"","archive.total_suffix":"posts","category.title":"Categories","tag.title":"Tags","footer.powered":"Powered by Hexo","palette.toggle":"Palette","palette.auto":"auto","palette.blue":"Lake","palette.green":"Jade","palette.gold":"Amber","palette.red":"Crimson","background.toggle":"Backdrop","background.sky":"Sky","background.ocean":"Ocean","mode.toggle":"Day / night","mode.auto":"Auto","mode.day":"Day","mode.night":"Night","error404.title":"Page not found","error404.description":"The page you are looking for may have been moved or removed.","error404.home":"Back to home","skip":"Skip to content"}}}
     };
   </script>
-<meta name="generator" content="Hexo 8.1.2"><link rel="canonical" href="https://doubleye.me/blog/2026/11/17/rendering-digest-2026-11-17/">
-<style id="theme-svg-layout">
+<meta name="generator" content="Hexo 8.1.2"><style id="theme-svg-layout">
 .theme-svg-figure{margin:1.7rem 0;max-width:100%;line-height:0}
 .theme-svg-figure .theme-svg-link,.theme-svg-figure .theme-svg-panel{display:block;background-image:none!important;text-decoration:none!important;border:0;border-radius:10px;overflow:hidden}
 .theme-svg-figure .theme-diagram{display:block;width:100%;height:auto;max-width:100%}
@@ -96,7 +95,8 @@
 .theme-svg-figure .theme-svg-link:focus-visible{outline:2px solid currentColor;outline-offset:4px}
 @media (prefers-reduced-motion:reduce){.theme-svg-figure .theme-diagram,.theme-svg-figure .theme-diagram *{transition:none}}
 @media print{.theme-svg-figure{break-inside:avoid}}
-</style></head>
+</style><link rel="canonical" href="https://doubleye.me/blog/2026/11/17/rendering-digest-2026-11-17/">
+</head>
 
 
 <body class="juice-tilt juice-wobble juice-foil text-titles" data-card-effect="pixel-glass">
@@ -623,7 +623,15 @@
       
       
       <nav class="post-nav" data-i18n-aria-label="post.navigation" aria-label="文章导航">
-        <span></span>
+        
+          <a class="post-nav__item post-nav__prev card" data-tilt href="/2026/11/18/rendering-digest-2026-11-18/">
+            <span class="card__inner">
+              <span class="post-nav__label px"><span data-ui-lang="zh-CN">上一篇</span><span data-ui-lang="en">Newer</span> · 2026-11-18</span>
+              <span class="post-nav__title">DXR 的 CLAS 与 PTLAS</span>
+              <span class="card__foil" aria-hidden="true"></span>
+            </span>
+          </a>
+        
         
           <a class="post-nav__item post-nav__next card" data-tilt href="/2026/11/16/rendering-digest-2026-11-16/">
             <span class="card__inner">

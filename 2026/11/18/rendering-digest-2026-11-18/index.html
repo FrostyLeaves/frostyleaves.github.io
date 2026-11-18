@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN" data-palette="green" data-palette-pref="auto" data-background="sky" data-mode="day" data-mode-pref="day">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>DXR 的 CLAS 与 PTLAS · DoubleYe</title>
+  
+  <meta name="theme-color" content="#f0eee8">
+  <meta name="description" content="动态场景的光追开销包含两部分：更新加速结构，以及用它追踪光线。模型变形、LOD 切换和实例移动都会影响前一部分。传统 DXR 以 BLAS 管理几何，以 TLAS 管理实例，局部变化也可能带来较大范围的结构更新。 微软在 2026 年 10 月 28 日发布的 DXR 预览增加了 Clustered Geometry 和 Partitioned TLAS。前者把几何构建拆成可复用的小簇，后者让场景">
+<meta property="og:type" content="article">
+<meta property="og:title" content="DXR 的 CLAS 与 PTLAS">
+<meta property="og:url" content="https://frostyleaves.github.io/2026/11/18/rendering-digest-2026-11-18/index.html">
+<meta property="og:site_name" content="DoubleYe">
+<meta property="og:description" content="动态场景的光追开销包含两部分：更新加速结构，以及用它追踪光线。模型变形、LOD 切换和实例移动都会影响前一部分。传统 DXR 以 BLAS 管理几何，以 TLAS 管理实例，局部变化也可能带来较大范围的结构更新。 微软在 2026 年 10 月 28 日发布的 DXR 预览增加了 Clustered Geometry 和 Partitioned TLAS。前者把几何构建拆成可复用的小簇，后者让场景">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-11-18T00:00:00.000Z">
+<meta property="article:modified_time" content="2026-11-18T02:42:02.428Z">
+<meta property="article:author" content="DoubleYe">
+<meta property="article:tag" content="DirectX">
+<meta property="article:tag" content="GPU 数据结构">
+<meta property="article:tag" content="光线追踪">
+<meta name="twitter:card" content="summary">
+  
+    <link rel="icon" href="/images/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" sizes="192x192" href="/images/favicon-192x192.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+  
+  <link rel="alternate" type="application/atom+xml" title="DoubleYe" href="https://doubleye.me/blog/atom.xml">
+  
+<link rel="stylesheet" href="/css/fonts.css">
+
+  
+<link rel="stylesheet" href="/css/main.css">
+
+  <style id="palette-css">:root,:root[data-palette="blue"]{--accent:#009dff;--bg-1:#009dff;--bg-2:#1f4f77;--bg-3:#1c2628}
+.tone-blue{--tone:#009dff}
+:root[data-palette="green"]{--accent:#4bc292;--bg-1:#4bc292;--bg-2:#1f5e4a;--bg-3:#1c2628}
+.tone-green{--tone:#4bc292}
+:root[data-palette="gold"]{--accent:#f3b958;--bg-1:#f3b958;--bg-2:#7e5a1e;--bg-3:#1c2628}
+.tone-gold{--tone:#f3b958}
+:root[data-palette="red"]{--accent:#fe5f55;--bg-1:#fe5f55;--bg-2:#6e2a26;--bg-3:#1c2628}
+.tone-red{--tone:#fe5f55}</style>
+  <style id="language-css">:root[lang="zh-CN"] [data-ui-lang]:not([data-ui-lang="zh-CN"]){display:none}
+:root[lang="en"] [data-ui-lang]:not([data-ui-lang="en"]){display:none}</style>
+  <script>
+    (function () {
+      // Keep reader preferences when upgrading from the theme's former name.
+      function migrate(storage, names) {
+        names.forEach(function (name) {
+          var key = 'drift-' + name;
+          if (storage.getItem(key) !== null) return;
+          var previous = storage.getItem('doubleye-' + name);
+          if (previous !== null) storage.setItem(key, previous);
+        });
+      }
+      try { migrate(localStorage, ['palette', 'background', 'mode']); } catch (e) { /* storage may be blocked */ }
+      try { migrate(sessionStorage, ['bg-time']); } catch (e) { /* storage may be blocked */ }
+      var root = document.documentElement;
+      var languages = ["zh-CN","en"], language = null;
+      try { language = localStorage.getItem('drift-language'); } catch (e) { /* storage may be blocked */ }
+      root.lang = languages.indexOf(language) >= 0 ? language : "zh-CN";
+      var names = ["blue","green","gold","red"], auto = 'green', pref = null;
+      try { pref = localStorage.getItem('drift-palette'); } catch (e) { pref = null; }
+      if (names.indexOf(pref) < 0) pref = 'auto';
+      root.setAttribute('data-palette', pref === 'auto' ? auto : pref);
+      root.setAttribute('data-palette-pref', pref);
+      var scenes = ["sky","ocean"], scene = null, mode = null;
+      try { scene = localStorage.getItem('drift-background'); mode = localStorage.getItem('drift-mode'); } catch (e) { scene = null; mode = null; }
+      if (scenes.indexOf(scene) < 0) scene = 'sky';
+      if (mode !== 'auto' && mode !== 'day' && mode !== 'night') mode = 'day';
+      root.setAttribute('data-mode-pref', mode);
+      if (mode === 'auto') mode = window.matchMedia && !window.matchMedia('(prefers-color-scheme: dark)').matches ? 'day' : 'night';
+      root.setAttribute('data-background', scene);
+      root.setAttribute('data-mode', mode);
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute('content', mode === 'day' ? '#f0eee8' : '#191a1c');
+    })();
+    window.__THEME = {
+      palettes: {"blue":{"colors":["#009dff","#1f4f77","#1c2628"],"accent":"#009dff"},"green":{"colors":["#4bc292","#1f5e4a","#1c2628"],"accent":"#4bc292"},"gold":{"colors":["#f3b958","#7e5a1e","#1c2628"],"accent":"#f3b958"},"red":{"colors":["#fe5f55","#6e2a26","#1c2628"],"accent":"#fe5f55"}},
+      auto: 'green',
+      labels: {"auto":"自动","toggle":"切换配色","copy":"复制","copied":"已复制","sceneToggle":"切换背景","scenes":{"sky":"天空","ocean":"海洋"},"modeToggle":"切换日夜","modes":{"auto":"自动","day":"日间","night":"夜间"},"blue":"湖蓝","green":"青翠","gold":"琥珀","red":"绯红"},
+      background: {"enable":true,"style":"sky","styles":["sky","ocean"],"mode":"day","speed":1,"fps":30,"pixel_filter":740},
+      juice: {"tilt":true,"wobble":true,"foil":"pixel-glass","text":"titles"},
+      i18n: {"languages":["zh-CN","en"],"default":"zh-CN","dictionaries":{"zh-CN":{"nav.home":"首页","nav.posts":"文章","nav.categories":"分类","nav.tags":"标签","nav.archives":"归档","language.toggle":"切换语言","language.name":"中文","language.short":"中","pagination":"翻页","hero.posts":"篇文章","hero.categories":"个分类","hero.tags":"个标签","post.navigation":"文章导航","post.toc":"目录","post.reading_progress":"阅读进度","post.reading_hint":"拖动刻度跳转 · 点击章节定位","post.updated":"更新于","post.words":"字","post.minutes":"分钟","post.prev":"上一篇","post.next":"下一篇","post.license_prefix":"本文采用","post.license_suffix":"许可","post.copy":"复制","post.copied":"已复制","post.scroll_down":"向下滚动","post.tags":"标签","archive.title":"归档","archive.total_prefix":"共","archive.total_suffix":"篇","category.title":"分类","tag.title":"标签","footer.powered":"由 Hexo 驱动","palette.toggle":"切换配色","palette.auto":"自动","palette.blue":"湖蓝","palette.green":"青翠","palette.gold":"琥珀","palette.red":"绯红","background.toggle":"切换背景","background.sky":"天空","background.ocean":"海洋","mode.toggle":"切换日夜","mode.auto":"自动","mode.day":"日间","mode.night":"夜间","error404.title":"页面不存在","error404.description":"你访问的页面可能已被移动或删除。","error404.home":"返回首页","skip":"跳到正文"},"en":{"nav.home":"Home","nav.posts":"Posts","nav.categories":"Categories","nav.tags":"Tags","nav.archives":"Archives","language.toggle":"Language","language.name":"English","language.short":"EN","pagination":"Pagination","hero.posts":"posts","hero.categories":"categories","hero.tags":"tags","post.navigation":"Post navigation","post.toc":"Contents","post.reading_progress":"Reading progress","post.reading_hint":"Drag the ruler · Click a chapter","post.updated":"Updated","post.words":"words","post.minutes":"min","post.prev":"Newer","post.next":"Older","post.license_prefix":"Licensed under","post.license_suffix":"","post.copy":"Copy","post.copied":"Copied","post.scroll_down":"Scroll down","post.tags":"Tags","archive.title":"Archives","archive.total_prefix":"","archive.total_suffix":"posts","category.title":"Categories","tag.title":"Tags","footer.powered":"Powered by Hexo","palette.toggle":"Palette","palette.auto":"auto","palette.blue":"Lake","palette.green":"Jade","palette.gold":"Amber","palette.red":"Crimson","background.toggle":"Backdrop","background.sky":"Sky","background.ocean":"Ocean","mode.toggle":"Day / night","mode.auto":"Auto","mode.day":"Day","mode.night":"Night","error404.title":"Page not found","error404.description":"The page you are looking for may have been moved or removed.","error404.home":"Back to home","skip":"Skip to content"}}}
+    };
+  </script>
+<meta name="generator" content="Hexo 8.1.2"><link rel="canonical" href="https://doubleye.me/blog/2026/11/18/rendering-digest-2026-11-18/">
+</head>
+
+
+<body class="juice-tilt juice-wobble juice-foil text-titles" data-card-effect="pixel-glass">
+  <a class="skip-link" href="#main"><span data-ui-lang="zh-CN">跳到正文</span><span data-ui-lang="en">Skip to content</span></a>
+  <div class="backdrop" id="backdrop" aria-hidden="true"><canvas class="backdrop__canvas" id="backdrop-canvas"></canvas><canvas class="backdrop__snapshot" id="backdrop-snapshot"></canvas></div>
+  
+<header class="site-header" id="site-header">
+  <div class="site-header__inner">
+    <a class="site-brand px" href="/" aria-label="DoubleYe"><span class="w"><span class="ch" style="--i:0" aria-hidden="true">D</span><span class="ch" style="--i:1" aria-hidden="true">o</span><span class="ch" style="--i:2" aria-hidden="true">u</span><span class="ch" style="--i:3" aria-hidden="true">b</span><span class="ch" style="--i:4" aria-hidden="true">l</span><span class="ch" style="--i:5" aria-hidden="true">e</span><span class="ch" style="--i:6" aria-hidden="true">Y</span><span class="ch" style="--i:7" aria-hidden="true">e</span></span></a>
+    <nav class="site-nav" data-i18n-aria-label="nav.home" aria-label="首页">
+      
+        <a class="btn btn--nav px" href="/archives/"><span data-ui-lang="zh-CN">文章</span><span data-ui-lang="en">Posts</span></a>
+      
+        <a class="btn btn--nav px" href="/categories/"><span data-ui-lang="zh-CN">分类</span><span data-ui-lang="en">Categories</span></a>
+      
+        <a class="btn btn--nav px" href="/tags/"><span data-ui-lang="zh-CN">标签</span><span data-ui-lang="en">Tags</span></a>
+      
+        <a class="btn btn--nav px" href="/"><span data-ui-lang="zh-CN">首页</span><span data-ui-lang="en">Home</span></a>
+      
+      <div class="site-controls">
+      <button class="palette-toggle" id="palette-toggle" type="button" aria-label="切换配色: 自动 · 青翠" title="切换配色: 自动 · 青翠">
+        <span class="palette-toggle__disc" aria-hidden="true"></span>
+        <span class="palette-toggle__label px" id="palette-label"><span data-ui-lang="zh-CN">自动</span><span data-ui-lang="en">auto</span></span>
+      </button>
+      
+      <button class="scene-toggle" id="background-toggle" type="button" aria-label="切换背景" title="切换背景: 天空">
+        <span class="scene-toggle__icon" aria-hidden="true">
+          <svg class="scene-icon scene-icon--sky" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="2" y="0" width="1" height="5"/><rect x="0" y="2" width="5" height="1"/><rect x="1" y="1" width="1" height="1"/><rect x="3" y="1" width="1" height="1"/><rect x="1" y="3" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="6" y="5" width="4" height="1"/><rect x="5" y="6" width="6" height="1"/><rect x="4" y="7" width="8" height="1"/><rect x="3" y="8" width="9" height="2"/></svg>
+          <svg class="scene-icon scene-icon--ocean" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="1" y="2" width="3" height="1"/><rect x="6" y="2" width="3" height="1"/><rect x="0" y="3" width="1" height="1"/><rect x="4" y="3" width="2" height="1"/><rect x="9" y="3" width="2" height="1"/><rect x="1" y="6" width="3" height="1"/><rect x="6" y="6" width="3" height="1"/><rect x="0" y="7" width="1" height="1"/><rect x="4" y="7" width="2" height="1"/><rect x="9" y="7" width="2" height="1"/><rect x="1" y="10" width="3" height="1"/><rect x="6" y="10" width="3" height="1"/><rect x="0" y="11" width="1" height="1"/><rect x="4" y="11" width="2" height="1"/><rect x="9" y="11" width="2" height="1"/></svg>
+        </span>
+        <span class="scene-toggle__label px" id="background-label"><span data-ui-lang="zh-CN">天空</span><span data-ui-lang="en">Sky</span></span>
+      </button>
+      
+      <button class="scene-toggle mode-toggle" id="mode-toggle" type="button" aria-label="切换日夜" title="切换日夜: 日间">
+        <span class="scene-toggle__icon" aria-hidden="true">
+          <svg class="mode-icon mode-icon--auto" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="1" y="1" width="10" height="1"/><rect x="0" y="2" width="1" height="5"/><rect x="11" y="2" width="1" height="5"/><rect x="1" y="7" width="10" height="1"/><rect x="5" y="8" width="2" height="2"/><rect x="3" y="10" width="6" height="1"/></svg>
+          <svg class="mode-icon mode-icon--night" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="4" y="1" width="4" height="1"/><rect x="3" y="2" width="2" height="1"/><rect x="2" y="3" width="2" height="2"/><rect x="2" y="5" width="2" height="2"/><rect x="2" y="7" width="2" height="2"/><rect x="3" y="9" width="2" height="1"/><rect x="4" y="10" width="4" height="1"/><rect x="8" y="9" width="2" height="1"/><rect x="8" y="2" width="2" height="1"/></svg>
+          <svg class="mode-icon mode-icon--day" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="4" y="4" width="4" height="4"/><rect x="5" y="0" width="2" height="2"/><rect x="5" y="10" width="2" height="2"/><rect x="0" y="5" width="2" height="2"/><rect x="10" y="5" width="2" height="2"/><rect x="1" y="1" width="2" height="1"/><rect x="1" y="2" width="1" height="1"/><rect x="9" y="1" width="2" height="1"/><rect x="10" y="2" width="1" height="1"/><rect x="1" y="9" width="1" height="1"/><rect x="1" y="10" width="2" height="1"/><rect x="10" y="9" width="1" height="1"/><rect x="9" y="10" width="2" height="1"/></svg>
+        </span>
+        <span class="scene-toggle__label px" id="mode-label"><span data-ui-lang="zh-CN">日间</span><span data-ui-lang="en">Day</span></span>
+      </button>
+      
+      <button class="language-toggle px" id="language-toggle" type="button" title="切换语言" aria-label="切换语言"><span data-ui-lang="zh-CN">中</span><span data-ui-lang="en">EN</span></button>
+      
+      </div>
+    </nav>
+  </div>
+</header>
+
+  <main id="main" class="site-main">
+    
+<article class="post-layout has-toc" itemscope itemtype="https://schema.org/BlogPosting">
+  
+  <div class="reading-mobile" hidden role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-i18n-aria-label="post.reading_progress" aria-label="阅读进度"><span></span></div>
+  
+  <div class="post container">
+    <header class="post-header">
+      <h1 class="post-title px title-anim" itemprop="headline" aria-label="DXR 的 CLAS 与 PTLAS"><span class="w"><span class="ch" style="--i:0" aria-hidden="true">D</span><span class="ch" style="--i:1" aria-hidden="true">X</span><span class="ch" style="--i:2" aria-hidden="true">R</span></span> <span class="ch" style="--i:3" aria-hidden="true">的</span> <span class="w"><span class="ch" style="--i:4" aria-hidden="true">C</span><span class="ch" style="--i:5" aria-hidden="true">L</span><span class="ch" style="--i:6" aria-hidden="true">A</span><span class="ch" style="--i:7" aria-hidden="true">S</span></span> <span class="ch" style="--i:8" aria-hidden="true">与</span> <span class="w"><span class="ch" style="--i:9" aria-hidden="true">P</span><span class="ch" style="--i:10" aria-hidden="true">T</span><span class="ch" style="--i:11" aria-hidden="true">L</span><span class="ch" style="--i:12" aria-hidden="true">A</span><span class="ch" style="--i:13" aria-hidden="true">S</span></span></h1>
+      
+<div class="post-meta">
+  <time class="badge badge--date px" datetime="2026-11-18T00:00:00.000Z">2026-11-18</time>
+  
+    <a class="seal tone-green px" href="/categories/%E6%AF%8F%E6%97%A5%E6%8E%A8%E8%8D%90/"><span class="seal__dot" aria-hidden="true"></span>每日推荐</a>
+  
+  <span class="badge badge--blue px post-meta__words">1,165 <span data-ui-lang="zh-CN">字</span><span data-ui-lang="en">words</span></span>
+  <span class="badge badge--red px">3 <span data-ui-lang="zh-CN">分钟</span><span data-ui-lang="en">min</span></span>
+  
+</div>
+
+    </header>
+
+    
+    <details class="toc-mobile panel">
+      <summary class="px"><span data-ui-lang="zh-CN">目录</span><span data-ui-lang="en">Contents</span><span class="toc-mobile__percent" data-reading-percent aria-hidden="true"></span></summary>
+      
+
+<nav class="toc panel" data-i18n-aria-label="post.toc" aria-label="目录">
+  <div class="toc__title px"><span data-ui-lang="zh-CN">目录</span><span data-ui-lang="en">Contents</span></div>
+  <ol class="toc-list"><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#CLAS-%E5%A4%8D%E7%94%A8%E5%87%A0%E4%BD%95%E7%B0%87"><span class="toc-list-text">CLAS 复用几何簇</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%8A%A8%E7%94%BB%E5%A4%8D%E7%94%A8%E6%8B%93%E6%89%91%E6%A8%A1%E6%9D%BF"><span class="toc-list-text">动画复用拓扑模板</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#PTLAS-%E4%BF%9D%E7%95%99%E6%9C%AA%E5%8F%98%E5%8C%96%E7%9A%84%E5%88%86%E5%8C%BA"><span class="toc-list-text">PTLAS 保留未变化的分区</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#GPU-%E7%94%9F%E6%88%90%E6%9E%84%E5%BB%BA%E4%BB%BB%E5%8A%A1"><span class="toc-list-text">GPU 生成构建任务</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E6%8E%A5%E5%85%A5%E4%BB%B7%E5%80%BC%E4%B8%8E%E4%BB%A3%E4%BB%B7"><span class="toc-list-text">接入价值与代价</span></a></li></ol>
+</nav>
+
+
+    </details>
+    
+
+    <div class="post-body panel">
+      <div class="post-content" id="drift-post-content" itemprop="articleBody" lang="zh-CN">
+        <p>动态场景的光追开销包含两部分：更新加速结构，以及用它追踪光线。模型变形、LOD 切换和实例移动都会影响前一部分。传统 DXR 以 BLAS 管理几何，以 TLAS 管理实例，局部变化也可能带来较大范围的结构更新。</p>
+<p>微软在 2026 年 10 月 28 日发布的 <a target="_blank" rel="noopener" href="https://devblogs.microsoft.com/directx/clas-ptlas-preview/">DXR 预览</a>增加了 Clustered Geometry 和 Partitioned TLAS。前者把几何构建拆成可复用的小簇，后者让场景更新集中在发生变化的分区。两者可以独立使用。</p>
+<span id="more"></span>
+
+<h2 id="CLAS-复用几何簇"><a href="#CLAS-复用几何簇" class="headerlink" title="CLAS 复用几何簇"></a>CLAS 复用几何簇</h2><p>传统 BLAS 从三角形集合构建。Clustered Geometry 先把空间邻近的三角形组成簇，为每簇建立 CLAS，再由 CLAS 的引用构建 Cluster BLAS。TLAS 中的实例仍然引用 BLAS。</p>
+<p>一个 CLAS 最多包含 256 个三角形和 256 个不同的顶点索引。多个 Cluster BLAS 可以引用同一个 CLAS。LOD 或流式加载改变簇的组合时，已有 CLAS 可以继续使用，重新组装的输入也缩小到了簇这一层。引用关系需要维护，CLAS 内容或地址改变后，依赖它的 Cluster BLAS 会失效，需要重建。<a target="_blank" rel="noopener" href="https://github.com/microsoft/DirectX-Specs/blob/master/d3d/Raytracing2.md">DXR 规范</a></p>
+<h2 id="动画复用拓扑模板"><a href="#动画复用拓扑模板" class="headerlink" title="动画复用拓扑模板"></a>动画复用拓扑模板</h2><p>骨骼动画每帧改变顶点位置，三角形连接关系通常保持不变。Cluster Template 提前完成与位置无关的构建工作，保存可重复使用的拓扑等信息。每帧将变形后的顶点位置填入模板，生成 CLAS，再组装 Cluster BLAS。模板本身不能用于光线求交。</p>
+<p>Clustered Geometry 用模板实例化处理动态几何，不提供传统的 refit。相同拓扑还会出现在细分地形中，NVIDIA 的示例使用有限种细分模式生成模板，运行时为它们提供实际位置。<a target="_blank" rel="noopener" href="https://github.com/NVIDIA-RTX/Whitepapers/blob/main/dx_clusters_and_ptlas/README.md">NVIDIA 技术介绍</a></p>
+<h2 id="PTLAS-保留未变化的分区"><a href="#PTLAS-保留未变化的分区" class="headerlink" title="PTLAS 保留未变化的分区"></a>PTLAS 保留未变化的分区</h2><p>PTLAS 把实例分配到多个分区。每个分区有自己的加速结构，上层结构再将这些分区组合起来。实例记录持续保留，更新时提交发生变化的记录，未变化的分区继续复用之前的结构。</p>
+<p>频繁移动的实例可以放进 global partition，其中每个实例在构建和遍历时近似作为独立分区处理，减少它带动普通空间分区反复重建的成本。分区边界重叠会影响遍历效率，因此空间划分和动态实例的归属也成为应用需要管理的内容。<a target="_blank" rel="noopener" href="https://github.com/NVIDIA-RTX/Whitepapers/blob/main/dx_clusters_and_ptlas/README.md">NVIDIA 技术介绍</a></p>
+<p>API 区分两种实例操作。修改变换使用 <code>WRITE_INSTANCE</code>，<code>UPDATE_INSTANCE</code> 只修改 BLAS 地址和 hit-group-table contribution。稀疏写入中的 <code>InstanceIndex</code> 是持久记录的编号，与本帧写入数组中的位置无关。<a target="_blank" rel="noopener" href="https://github.com/microsoft/DirectX-Specs/blob/master/d3d/Raytracing2.md">DXR 规范</a></p>
+<h2 id="GPU-生成构建任务"><a href="#GPU-生成构建任务" class="headerlink" title="GPU 生成构建任务"></a>GPU 生成构建任务</h2><p>新的 <code>ExecuteIndirectRTASOperations</code> 从 GPU 内存读取批量参数，compute shader 可以直接生成工作。CLAS 构建、Cluster BLAS 组装和 PTLAS 更新由此能接入 GPU 驱动的几何流程。</p>
+<p>同一次调用里的操作不能相互依赖。先构建 CLAS，再组装 Cluster BLAS，最后更新 PTLAS，需要拆成不同调用，并在依赖阶段之间插入 barrier。<a target="_blank" rel="noopener" href="https://devblogs.microsoft.com/directx/clas-ptlas-preview/">微软 API 介绍</a></p>
+<h2 id="接入价值与代价"><a href="#接入价值与代价" class="headerlink" title="接入价值与代价"></a>接入价值与代价</h2><p>相对每次从三角形重建 BLAS，CLAS 的价值在于复用已构建的簇和模板。PTLAS 则适合大量实例中只有局部发生变化的场景。已有 meshlet、LOD 和场景分区的引擎，可以沿用这些组织方式来划分簇与分区。</p>
+<p>新增的管理成本也很具体：簇引用的生命周期、分区归属、构建缓冲区和阶段同步都需要接入引擎。构建节省与遍历成本应分开观察。微软展示的样例中，scratch 显存可能显著增加，PTLAS 的遍历时间也可能上升。实际收益要看两部分成本相加后的结果。</p>
+<p>微软的 <a target="_blank" rel="noopener" href="https://github.com/microsoft/DirectX-Graphics-Samples/blob/master/Samples/Desktop/D3D12Raytracing/src/D3D12RaytracingClusteredGeometry/readme.md">Clustered Geometry 样例</a>支持切换传统重建、refit 和簇路径，分别记录 AS 构建、追踪与显存。它刻意给复制物体建立独立 BLAS，并非优化过的实例化基准。相同变形的实例在实际引擎里可以共享传统 BLAS，因此不宜直接套用该压力场景的收益倍率。</p>
+<p>阅读代码可以从 <code>BuildClasImplicit</code> 和 <code>BuildBlasFromClasIndirect</code> 开始，再看 <code>BuildAnimatedObjectSetup</code>、<code>UpdateAnimatedObjectPerFrame</code> 与对应的 GPU 参数写入 shader。本文核对的是 Agility SDK 1.722.0-preview 及 2026 年 11 月 11 日的 DXR 规范 v0.39，仍处于预览阶段，运行需要匹配的 SDK、编译器与支持驱动。</p>
+
+      </div>
+      
+        <p class="post-license">
+          <span data-ui-lang="zh-CN">本文采用</span><span data-ui-lang="en">Licensed under</span>
+          <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="license noopener">CC BY-NC 4.0</a>
+          <span data-ui-lang="zh-CN">许可</span><span data-ui-lang="en"></span>
+        </p>
+      
+    </div>
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a class="chip px" href="/tags/GPU-%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/">#GPU 数据结构</a>
+          
+            <a class="chip px" href="/tags/%E5%85%89%E7%BA%BF%E8%BF%BD%E8%B8%AA/">#光线追踪</a>
+          
+            <a class="chip px" href="/tags/DirectX/">#DirectX</a>
+          
+        </div>
+      
+      
+      <nav class="post-nav" data-i18n-aria-label="post.navigation" aria-label="文章导航">
+        <span></span>
+        
+          <a class="post-nav__item post-nav__next card" data-tilt href="/2026/11/17/rendering-digest-2026-11-17/">
+            <span class="card__inner">
+              <span class="post-nav__label px"><span data-ui-lang="zh-CN">下一篇</span><span data-ui-lang="en">Older</span> · 2026-11-17</span>
+              <span class="post-nav__title">透明度混合OIT介绍</span>
+              <span class="card__foil" aria-hidden="true"></span>
+            </span>
+          </a>
+        
+      </nav>
+      
+    </footer>
+
+    
+
+<section class="comments panel" id="comments"
+  data-repo="FrostyLeaves/frostyleaves.github.io"
+  data-issue-term="og:title"
+  data-label="utterances"></section>
+
+
+  </div>
+
+  
+  <aside class="post-aside">
+    
+
+<nav class="reading-rail" data-i18n-aria-label="post.toc" aria-label="目录">
+  <div class="reading-rail__head px">
+    <span><span data-ui-lang="zh-CN">目录</span><span data-ui-lang="en">Contents</span></span>
+    <span class="reading-rail__percent" data-reading-percent aria-hidden="true">000%</span>
+  </div>
+  <div class="reading-rail__stage">
+    <div class="reading-rail__chapters"><ol class="toc-list"><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#CLAS-%E5%A4%8D%E7%94%A8%E5%87%A0%E4%BD%95%E7%B0%87"><span class="toc-list-text">CLAS 复用几何簇</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%8A%A8%E7%94%BB%E5%A4%8D%E7%94%A8%E6%8B%93%E6%89%91%E6%A8%A1%E6%9D%BF"><span class="toc-list-text">动画复用拓扑模板</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#PTLAS-%E4%BF%9D%E7%95%99%E6%9C%AA%E5%8F%98%E5%8C%96%E7%9A%84%E5%88%86%E5%8C%BA"><span class="toc-list-text">PTLAS 保留未变化的分区</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#GPU-%E7%94%9F%E6%88%90%E6%9E%84%E5%BB%BA%E4%BB%BB%E5%8A%A1"><span class="toc-list-text">GPU 生成构建任务</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E6%8E%A5%E5%85%A5%E4%BB%B7%E5%80%BC%E4%B8%8E%E4%BB%A3%E4%BB%B7"><span class="toc-list-text">接入价值与代价</span></a></li></ol></div>
+    <div class="reading-rail__ruler" role="scrollbar" tabindex="0" aria-controls="drift-post-content" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-i18n-aria-label="post.reading_progress" aria-label="阅读进度">
+      <div class="reading-rail__ticks" aria-hidden="true">
+        
+        <span class="reading-rail__tick is-major" style="top: 0%"><b>0</b></span>
+        
+        <span class="reading-rail__tick" style="top: 1%"></span>
+        
+        <span class="reading-rail__tick" style="top: 2%"></span>
+        
+        <span class="reading-rail__tick" style="top: 3%"></span>
+        
+        <span class="reading-rail__tick" style="top: 4%"></span>
+        
+        <span class="reading-rail__tick" style="top: 5%"></span>
+        
+        <span class="reading-rail__tick" style="top: 6%"></span>
+        
+        <span class="reading-rail__tick" style="top: 7%"></span>
+        
+        <span class="reading-rail__tick" style="top: 8%"></span>
+        
+        <span class="reading-rail__tick" style="top: 9%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 10%"><b>10</b></span>
+        
+        <span class="reading-rail__tick" style="top: 11%"></span>
+        
+        <span class="reading-rail__tick" style="top: 12%"></span>
+        
+        <span class="reading-rail__tick" style="top: 13%"></span>
+        
+        <span class="reading-rail__tick" style="top: 14%"></span>
+        
+        <span class="reading-rail__tick" style="top: 15%"></span>
+        
+        <span class="reading-rail__tick" style="top: 16%"></span>
+        
+        <span class="reading-rail__tick" style="top: 17%"></span>
+        
+        <span class="reading-rail__tick" style="top: 18%"></span>
+        
+        <span class="reading-rail__tick" style="top: 19%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 20%"><b>20</b></span>
+        
+        <span class="reading-rail__tick" style="top: 21%"></span>
+        
+        <span class="reading-rail__tick" style="top: 22%"></span>
+        
+        <span class="reading-rail__tick" style="top: 23%"></span>
+        
+        <span class="reading-rail__tick" style="top: 24%"></span>
+        
+        <span class="reading-rail__tick" style="top: 25%"></span>
+        
+        <span class="reading-rail__tick" style="top: 26%"></span>
+        
+        <span class="reading-rail__tick" style="top: 27%"></span>
+        
+        <span class="reading-rail__tick" style="top: 28%"></span>
+        
+        <span class="reading-rail__tick" style="top: 29%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 30%"><b>30</b></span>
+        
+        <span class="reading-rail__tick" style="top: 31%"></span>
+        
+        <span class="reading-rail__tick" style="top: 32%"></span>
+        
+        <span class="reading-rail__tick" style="top: 33%"></span>
+        
+        <span class="reading-rail__tick" style="top: 34%"></span>
+        
+        <span class="reading-rail__tick" style="top: 35%"></span>
+        
+        <span class="reading-rail__tick" style="top: 36%"></span>
+        
+        <span class="reading-rail__tick" style="top: 37%"></span>
+        
+        <span class="reading-rail__tick" style="top: 38%"></span>
+        
+        <span class="reading-rail__tick" style="top: 39%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 40%"><b>40</b></span>
+        
+        <span class="reading-rail__tick" style="top: 41%"></span>
+        
+        <span class="reading-rail__tick" style="top: 42%"></span>
+        
+        <span class="reading-rail__tick" style="top: 43%"></span>
+        
+        <span class="reading-rail__tick" style="top: 44%"></span>
+        
+        <span class="reading-rail__tick" style="top: 45%"></span>
+        
+        <span class="reading-rail__tick" style="top: 46%"></span>
+        
+        <span class="reading-rail__tick" style="top: 47%"></span>
+        
+        <span class="reading-rail__tick" style="top: 48%"></span>
+        
+        <span class="reading-rail__tick" style="top: 49%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 50%"><b>50</b></span>
+        
+        <span class="reading-rail__tick" style="top: 51%"></span>
+        
+        <span class="reading-rail__tick" style="top: 52%"></span>
+        
+        <span class="reading-rail__tick" style="top: 53%"></span>
+        
+        <span class="reading-rail__tick" style="top: 54%"></span>
+        
+        <span class="reading-rail__tick" style="top: 55%"></span>
+        
+        <span class="reading-rail__tick" style="top: 56%"></span>
+        
+        <span class="reading-rail__tick" style="top: 57%"></span>
+        
+        <span class="reading-rail__tick" style="top: 58%"></span>
+        
+        <span class="reading-rail__tick" style="top: 59%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 60%"><b>60</b></span>
+        
+        <span class="reading-rail__tick" style="top: 61%"></span>
+        
+        <span class="reading-rail__tick" style="top: 62%"></span>
+        
+        <span class="reading-rail__tick" style="top: 63%"></span>
+        
+        <span class="reading-rail__tick" style="top: 64%"></span>
+        
+        <span class="reading-rail__tick" style="top: 65%"></span>
+        
+        <span class="reading-rail__tick" style="top: 66%"></span>
+        
+        <span class="reading-rail__tick" style="top: 67%"></span>
+        
+        <span class="reading-rail__tick" style="top: 68%"></span>
+        
+        <span class="reading-rail__tick" style="top: 69%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 70%"><b>70</b></span>
+        
+        <span class="reading-rail__tick" style="top: 71%"></span>
+        
+        <span class="reading-rail__tick" style="top: 72%"></span>
+        
+        <span class="reading-rail__tick" style="top: 73%"></span>
+        
+        <span class="reading-rail__tick" style="top: 74%"></span>
+        
+        <span class="reading-rail__tick" style="top: 75%"></span>
+        
+        <span class="reading-rail__tick" style="top: 76%"></span>
+        
+        <span class="reading-rail__tick" style="top: 77%"></span>
+        
+        <span class="reading-rail__tick" style="top: 78%"></span>
+        
+        <span class="reading-rail__tick" style="top: 79%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 80%"><b>80</b></span>
+        
+        <span class="reading-rail__tick" style="top: 81%"></span>
+        
+        <span class="reading-rail__tick" style="top: 82%"></span>
+        
+        <span class="reading-rail__tick" style="top: 83%"></span>
+        
+        <span class="reading-rail__tick" style="top: 84%"></span>
+        
+        <span class="reading-rail__tick" style="top: 85%"></span>
+        
+        <span class="reading-rail__tick" style="top: 86%"></span>
+        
+        <span class="reading-rail__tick" style="top: 87%"></span>
+        
+        <span class="reading-rail__tick" style="top: 88%"></span>
+        
+        <span class="reading-rail__tick" style="top: 89%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 90%"><b>90</b></span>
+        
+        <span class="reading-rail__tick" style="top: 91%"></span>
+        
+        <span class="reading-rail__tick" style="top: 92%"></span>
+        
+        <span class="reading-rail__tick" style="top: 93%"></span>
+        
+        <span class="reading-rail__tick" style="top: 94%"></span>
+        
+        <span class="reading-rail__tick" style="top: 95%"></span>
+        
+        <span class="reading-rail__tick" style="top: 96%"></span>
+        
+        <span class="reading-rail__tick" style="top: 97%"></span>
+        
+        <span class="reading-rail__tick" style="top: 98%"></span>
+        
+        <span class="reading-rail__tick" style="top: 99%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 100%"><b>100</b></span>
+        
+      </div>
+      <span class="reading-rail__cursor" aria-hidden="true"></span>
+    </div>
+  </div>
+  <div class="reading-rail__hint"><span data-ui-lang="zh-CN">拖动刻度跳转 · 点击章节定位</span><span data-ui-lang="en">Drag the ruler · Click a chapter</span></div>
+</nav>
+
+
+  </aside>
+  
+</article>
+
+  </main>
+  
+<footer class="site-footer">
+  <div class="site-footer__inner">
+    <span class="site-footer__mark" aria-hidden="true"><svg viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" fill="currentColor"><rect x="5" y="1" width="2" height="10"/><rect x="1" y="5" width="10" height="2"/><rect x="3" y="3" width="1" height="1"/><rect x="8" y="3" width="1" height="1"/><rect x="3" y="8" width="1" height="1"/><rect x="8" y="8" width="1" height="1"/></svg></span>
+    <span>© 2025–2026 DoubleYe</span>
+    <span class="site-footer__links">
+      
+      <a target="_blank" rel="noopener" href="https://doubleye.me/blog/atom.xml">RSS</a>
+      <a href="https://hexo.io" target="_blank" rel="noopener"><span data-ui-lang="zh-CN">由 Hexo 驱动</span><span data-ui-lang="en">Powered by Hexo</span></a>
+    </span>
+  </div>
+</footer>
+
+  
+<script src="/js/language.js"></script>
+
+  
+<script src="/js/background.js"></script>
+
+  
+<script src="/js/theme.js"></script>
+
+  
+<script src="/js/reading-progress.js"></script>
+
+</body>
+</html>

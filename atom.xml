@@ -5,8 +5,19 @@
   <id>https://doubleye.me/blog/atom.xml</id>
   <link href="https://doubleye.me/blog/"/>
   <link href="https://doubleye.me/blog/atom.xml" rel="self" type="application/atom+xml"/>
-  <updated>2026-11-17T00:00:00.000Z</updated>
+  <updated>2026-11-18T00:00:00.000Z</updated>
   <author><name>DoubleYe</name></author>
+  <entry>
+    <title>DXR 的 CLAS 与 PTLAS</title>
+    <id>https://doubleye.me/blog/2026/11/18/rendering-digest-2026-11-18/</id>
+    <link href="https://doubleye.me/blog/2026/11/18/rendering-digest-2026-11-18/"/>
+    <published>2026-11-18T00:00:00.000Z</published>
+    <updated>2026-11-18T00:00:00.000Z</updated>
+    <summary type="text">动态场景的光追开销包含两部分：更新加速结构，以及用它追踪光线。模型变形、LOD 切换和实例移动都会影响前一部分。传统 DXR 以 BLAS 管理几何，以 TLAS 管理实例，局部变化也可能带来较大范围的结构更新。 微软在 2026 年 10 月 28 日发布的 DXR 预览增加了 Clustered Geometry 和 Partitioned TLAS。前者把几何构建拆成可复用的小簇，后者让场景更新集中在发生变化的分区。两者可以独立使用。</summary>
+    <category term="GPU 数据结构"/>
+    <category term="光线追踪"/>
+    <category term="DirectX"/>
+  </entry>
   <entry>
     <title>透明度混合OIT介绍</title>
     <id>https://doubleye.me/blog/2026/11/17/rendering-digest-2026-11-17/</id>
