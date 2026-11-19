@@ -1,0 +1,32 @@
+<svg style="--diagram-background:#222426;--diagram-text:#e6e4e0;--diagram-accent:#f3b958;--diagram-teal:#4bc292;--diagram-blue:#009dff;--diagram-purple:#8867a5;--diagram-orange:#f3b958" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 318" class="theme-diagram" data-theme-svg="1" role="img" aria-labelledby="cortao-rays-title cortao-rays-desc">
+<title id="cortao-rays-title">CORTAO 圆盘与半球方向</title>
+<desc id="cortao-rays-desc">着色点发出的方向中，两个命中圆盘位置被标为叉号，其余三个指向半球轮廓。</desc>
+<style>
+.theme-diagram {
+  --d-bg: var(--diagram-background, #ffffff);
+  --d-ink: var(--diagram-text, #383838);
+  --d-accent: var(--diagram-accent, #2bbc8a);
+  --d-muted: color-mix(in srgb, var(--d-ink) 68%, var(--d-bg));
+  --d-border: color-mix(in srgb, var(--d-ink) 19%, var(--d-bg));
+  --d-surface: color-mix(in srgb, var(--d-ink) 3%, var(--d-bg));
+  --d-shadow: color-mix(in srgb, #000000 35%, var(--d-bg));
+  --d-teal: var(--diagram-teal, color-mix(in srgb, var(--d-accent) 76%, var(--d-ink)));
+  --d-blue: var(--diagram-blue, color-mix(in srgb, var(--d-accent) 28%, #6c91bc));
+  --d-purple: var(--diagram-purple, color-mix(in srgb, var(--d-accent) 15%, #a18ab9));
+  --d-orange: var(--diagram-orange, color-mix(in srgb, var(--d-accent) 10%, #d3a462));
+  font-family: var(--diagram-font, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif);
+}
+.theme-diagram text { font-family: inherit; }
+</style>
+<rect width="600" height="318" fill="var(--d-bg)"/>
+<path d="M70 258 A230 222 0 0 1 530 258 M70 258H530" fill="none" stroke="var(--d-border)" stroke-width="2"/>
+<path d="M300 258L105 160M300 258L281 37M300 258L495 160" stroke="var(--d-blue)" stroke-width="3" fill="none" stroke-linecap="round"/>
+<path d="M300 258L155 86M300 258L430 76" stroke="var(--d-muted)" stroke-width="2" stroke-dasharray="6 7" fill="none"/>
+<ellipse cx="204" cy="144" rx="32" ry="13" transform="rotate(-40 204 144)" fill="var(--d-orange)" opacity=".32"/>
+<ellipse cx="390" cy="132" rx="27" ry="12" transform="rotate(36 390 132)" fill="var(--d-orange)" opacity=".32"/>
+<ellipse cx="204" cy="144" rx="32" ry="13" transform="rotate(-40 204 144)" fill="none" stroke="var(--d-orange)" stroke-width="3"/>
+<ellipse cx="390" cy="132" rx="27" ry="12" transform="rotate(36 390 132)" fill="none" stroke="var(--d-orange)" stroke-width="3"/>
+<path d="M300 258L204 144M300 258L390 132M198 138l12 12m0-12-12 12m186-24 12 12m0-12-12 12" stroke="var(--d-orange)" stroke-width="3" fill="none" stroke-linecap="round"/>
+<circle cx="300" cy="258" r="5" fill="var(--d-ink)"/>
+<g font-size="23" fill="var(--d-ink)"><text x="300" y="295" text-anchor="middle">着色点</text><text x="202" y="112" text-anchor="middle">圆盘</text><text x="407" y="105" text-anchor="middle">圆盘</text></g>
+</svg>

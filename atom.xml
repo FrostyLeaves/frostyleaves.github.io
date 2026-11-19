@@ -5,8 +5,19 @@
   <id>https://doubleye.me/blog/atom.xml</id>
   <link href="https://doubleye.me/blog/"/>
   <link href="https://doubleye.me/blog/atom.xml" rel="self" type="application/atom+xml"/>
-  <updated>2026-11-18T00:00:00.000Z</updated>
+  <updated>2026-11-19T00:00:00.000Z</updated>
   <author><name>DoubleYe</name></author>
+  <entry>
+    <title>CORTAO 圆盘遮挡环境光</title>
+    <id>https://doubleye.me/blog/2026/11/19/rendering-digest-2026-11-19/</id>
+    <link href="https://doubleye.me/blog/2026/11/19/rendering-digest-2026-11-19/"/>
+    <published>2026-11-19T00:00:00.000Z</published>
+    <updated>2026-11-19T00:00:00.000Z</updated>
+    <summary type="text">CORTAO 是 Daniel Isheden 开源的屏幕空间环境光遮蔽算法。参考实现和 Carbon Engine 实现均采用 MIT 许可。CORTAO 从深度和法线缓冲采样，用圆盘近似表面周围的几何，再计算半球上哪些方向被挡住。 GTAO 如何压缩遮挡信息GTAO 用一组切面划分半球。每个切面沿屏幕方向采样深度，在像素两侧分别记录最高的遮挡仰角，再对这些地平线所界定的可见角域积分。每侧一个角度就能描述连续的遮蔽区间。遇到细栏杆之类只挡住一小段方向的物体，地平线却可能把杆下本来可见的方向也算进去。采样较稀时，又可能漏掉决定地平线的最高点。 用圆盘保留方向间的空隙CORTAO 围绕着色点沿螺旋分布采样屏幕，把线性深度还原成视空间位置。落到遮蔽半径外或着色面下方的样本先剔除。通过筛选的样本近似成面向着色点的圆盘。圆盘的视角大小随采样区域、样本倾斜程度和距离而变。这样每个样本只遮住自己覆盖的一块方向，圆盘之间的空隙仍可以透出环境光。圆盘只参与当前像素的计算，不需要写出代理网格，也不需要构建光追加速结构。 图中从着色点出发的五条线代表五个采样方向。橙色圆盘各拦住一条，蓝线从圆盘之间或外侧通…</summary>
+    <category term="环境光遮蔽"/>
+    <category term="屏幕空间渲染"/>
+    <category term="Carbon Engine"/>
+  </entry>
   <entry>
     <title>DXR 的 CLAS 与 PTLAS</title>
     <id>https://doubleye.me/blog/2026/11/18/rendering-digest-2026-11-18/</id>

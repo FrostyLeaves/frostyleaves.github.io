@@ -1,0 +1,28 @@
+<svg style="--diagram-background:#222426;--diagram-text:#e6e4e0;--diagram-accent:#f3b958;--diagram-teal:#4bc292;--diagram-blue:#009dff;--diagram-purple:#8867a5;--diagram-orange:#f3b958" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 230" class="theme-diagram" data-theme-svg="1" role="img" aria-labelledby="cortao-error-title cortao-error-desc">
+<title id="cortao-error-title">复杂场景的平均平方误差</title>
+<desc id="cortao-error-desc">同一组复杂场景公开测试中，GTAO 2x2 平均平方误差 0.06055，CORTAO 4 为 0.03153。</desc>
+<style>
+.theme-diagram {
+  --d-bg: var(--diagram-background, #ffffff);
+  --d-ink: var(--diagram-text, #383838);
+  --d-accent: var(--diagram-accent, #2bbc8a);
+  --d-muted: color-mix(in srgb, var(--d-ink) 68%, var(--d-bg));
+  --d-border: color-mix(in srgb, var(--d-ink) 19%, var(--d-bg));
+  --d-surface: color-mix(in srgb, var(--d-ink) 3%, var(--d-bg));
+  --d-shadow: color-mix(in srgb, #000000 35%, var(--d-bg));
+  --d-teal: var(--diagram-teal, color-mix(in srgb, var(--d-accent) 76%, var(--d-ink)));
+  --d-blue: var(--diagram-blue, color-mix(in srgb, var(--d-accent) 28%, #6c91bc));
+  --d-purple: var(--diagram-purple, color-mix(in srgb, var(--d-accent) 15%, #a18ab9));
+  --d-orange: var(--diagram-orange, color-mix(in srgb, var(--d-accent) 10%, #d3a462));
+  font-family: var(--diagram-font, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif);
+}
+.theme-diagram text { font-family: inherit; }
+</style>
+<rect width="600" height="230" fill="var(--d-bg)"/>
+<path d="M157 50V179" stroke="var(--d-border)" stroke-width="2"/>
+<g font-size="22" fill="var(--d-ink)">
+<text x="142" y="87" text-anchor="end">GTAO</text><text x="142" y="155" text-anchor="end">CORTAO</text>
+<text x="480" y="87">0.06055</text><text x="330" y="155">0.03153</text></g>
+<rect x="157" y="64" width="303" height="32" rx="3" fill="var(--d-blue)"/>
+<rect x="157" y="132" width="158" height="32" rx="3" fill="var(--d-teal)"/>
+</svg>
