@@ -1,0 +1,160 @@
+<svg style="--diagram-background:#222426;--diagram-text:#e6e4e0;--diagram-accent:#f3b958;--diagram-teal:#4bc292;--diagram-blue:#009dff;--diagram-purple:#8867a5;--diagram-orange:#f3b958" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 632 374"
+     class="theme-diagram" data-theme-svg="1" role="img"
+     aria-labelledby="ntc-material-mlp-title ntc-material-mlp-desc">
+<title id="ntc-material-mlp-title">原论文 NTC 0.5 档解码石板路的一个 texel</title>
+<desc id="ntc-material-mlp-desc">G₀ 的四个角各提供一个 12 维特征向量，四组分别拼入输入。G₁ 的四邻经过双线性插值得到一个 20 维向量，再拼入 12 个位置编码分量和 1 个归一化 LOD，合计 81 个输入。两个全连接隐藏层各有 64 个通道，使用 hardGELU 激活。图中展开部分输入和隐藏通道，强调色标出第一隐藏层一个通道及其输入连线。右侧是石板路材质的全部 8 个线性输出：底色 RGB、法线 XYZ、粗糙度和环境遮蔽。</desc>
+<style>
+.theme-diagram {
+  --d-bg: var(--diagram-background, #ffffff);
+  --d-ink: var(--diagram-text, #383838);
+  --d-accent: var(--diagram-accent, #2bbc8a);
+  --d-muted: color-mix(in srgb, var(--d-ink) 68%, var(--d-bg));
+  --d-border: color-mix(in srgb, var(--d-ink) 19%, var(--d-bg));
+  --d-surface: color-mix(in srgb, var(--d-ink) 3%, var(--d-bg));
+  --d-shadow: color-mix(in srgb, #000000 35%, var(--d-bg));
+  --d-teal: var(--diagram-teal, color-mix(in srgb, var(--d-accent) 76%, var(--d-ink)));
+  --d-blue: var(--diagram-blue, color-mix(in srgb, var(--d-accent) 28%, #6c91bc));
+  --d-purple: var(--diagram-purple, color-mix(in srgb, var(--d-accent) 15%, #a18ab9));
+  --d-orange: var(--diagram-orange, color-mix(in srgb, var(--d-accent) 10%, #d3a462));
+  font-family: var(--diagram-font, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif);
+}
+.theme-diagram text { font-family: inherit; }
+</style>
+<rect width="632" height="374" fill="var(--d-bg)"/>
+
+<!-- Representative scalar connections within each dense transform. -->
+<g fill="none" stroke="var(--d-muted)" stroke-opacity=".38" stroke-width="1.3">
+  <path d="M171 78L283 88 M171 78L283 145 M171 78L283 265 M171 78L283 325"/>
+  <path d="M171 96L283 88 M171 96L283 145 M171 96L283 265 M171 96L283 325"/>
+  <path d="M171 111L283 88 M171 111L283 145 M171 111L283 265 M171 111L283 325"/>
+  <path d="M171 129L283 88 M171 129L283 145 M171 129L283 265 M171 129L283 325"/>
+  <path d="M171 144L283 88 M171 144L283 145 M171 144L283 265 M171 144L283 325"/>
+  <path d="M171 162L283 88 M171 162L283 145 M171 162L283 265 M171 162L283 325"/>
+  <path d="M171 177L283 88 M171 177L283 145 M171 177L283 265 M171 177L283 325"/>
+  <path d="M171 195L283 88 M171 195L283 145 M171 195L283 265 M171 195L283 325"/>
+  <path d="M171 221L283 88 M171 221L283 145 M171 221L283 265 M171 221L283 325"/>
+  <path d="M171 251L283 88 M171 251L283 145 M171 251L283 265 M171 251L283 325"/>
+  <path d="M171 280L283 88 M171 280L283 145 M171 280L283 265 M171 280L283 325"/>
+  <path d="M171 310L283 88 M171 310L283 145 M171 310L283 265 M171 310L283 325"/>
+  <path d="M171 349L283 88 M171 349L283 145 M171 349L283 265 M171 349L283 325"/>
+  <path d="M283 88L394 88 M283 88L394 145 M283 88L394 265 M283 88L394 325"/>
+  <path d="M283 145L394 88 M283 145L394 145 M283 145L394 265 M283 145L394 325"/>
+  <path d="M283 265L394 88 M283 265L394 145 M283 265L394 265 M283 265L394 325"/>
+  <path d="M283 325L394 88 M283 325L394 145 M283 325L394 265 M283 325L394 325"/>
+  <path d="M394 88L501 83 M394 88L501 110 M394 88L501 137 M394 88L501 185 M394 88L501 212 M394 88L501 239 M394 88L501 284 M394 88L501 344"/>
+  <path d="M394 145L501 83 M394 145L501 110 M394 145L501 137 M394 145L501 185 M394 145L501 212 M394 145L501 239 M394 145L501 284 M394 145L501 344"/>
+  <path d="M394 265L501 83 M394 265L501 110 M394 265L501 137 M394 265L501 185 M394 265L501 212 M394 265L501 239 M394 265L501 284 M394 265L501 344"/>
+  <path d="M394 325L501 83 M394 325L501 110 M394 325L501 137 M394 325L501 185 M394 325L501 212 M394 325L501 239 M394 325L501 284 M394 325L501 344"/>
+</g>
+<g fill="none" stroke="var(--d-accent)" stroke-width="2">
+  <path d="M283 145L171 78 M283 145L171 96 M283 145L171 111 M283 145L171 129 M283 145L171 144 M283 145L171 162 M283 145L171 177 M283 145L171 195 M283 145L171 221 M283 145L171 251 M283 145L171 280 M283 145L171 310 M283 145L171 349"/>
+</g>
+
+<!-- Each of the four short brackets at the top represents one 12-component corner vector. -->
+<g fill="none" stroke-width="2">
+  <path d="M135 75h-7v123h7 M154 75h-7v24h7 M154 108h-7v24h7 M154 141h-7v24h7 M154 174h-7v24h7" stroke="var(--d-teal)"/>
+  <path d="M154 218h-7v36h7" stroke="var(--d-blue)"/>
+  <path d="M154 277h-7v36h7" stroke="var(--d-purple)"/>
+  <path d="M147 349h10" stroke="var(--d-orange)"/>
+</g>
+<g fill="var(--d-bg)" stroke-width="2.5">
+  <g stroke="var(--d-teal)">
+    <circle cx="171" cy="78" r="5"/>
+    <circle cx="171" cy="96" r="5"/>
+    <circle cx="171" cy="111" r="5"/>
+    <circle cx="171" cy="129" r="5"/>
+    <circle cx="171" cy="144" r="5"/>
+    <circle cx="171" cy="162" r="5"/>
+    <circle cx="171" cy="177" r="5"/>
+    <circle cx="171" cy="195" r="5"/>
+  </g>
+  <g stroke="var(--d-blue)">
+    <circle cx="171" cy="221" r="5.5"/>
+    <circle cx="171" cy="251" r="5.5"/>
+  </g>
+  <g stroke="var(--d-purple)">
+    <circle cx="171" cy="280" r="5.5"/>
+    <circle cx="171" cy="310" r="5.5"/>
+  </g>
+  <g stroke="var(--d-orange)">
+    <circle cx="171" cy="349" r="6"/>
+  </g>
+</g>
+
+<g fill="var(--d-bg)" stroke="var(--d-ink)" stroke-width="2.3">
+    <circle cx="283" cy="88" r="7"/>
+    <circle cx="283" cy="265" r="7"/>
+    <circle cx="283" cy="325" r="7"/>
+    <circle cx="394" cy="88" r="7"/>
+    <circle cx="394" cy="145" r="7"/>
+    <circle cx="394" cy="265" r="7"/>
+    <circle cx="394" cy="325" r="7"/>
+    <circle cx="501" cy="83" r="6"/>
+    <circle cx="501" cy="110" r="6"/>
+    <circle cx="501" cy="137" r="6"/>
+    <circle cx="501" cy="185" r="6"/>
+    <circle cx="501" cy="212" r="6"/>
+    <circle cx="501" cy="239" r="6"/>
+    <circle cx="501" cy="284" r="6"/>
+    <circle cx="501" cy="344" r="6"/>
+</g>
+<circle cx="283" cy="145" r="7.8" fill="var(--d-accent)" stroke="var(--d-ink)" stroke-width="2"/>
+<g fill="var(--d-muted)">
+    <circle cx="171" cy="85" r="1"/>
+    <circle cx="171" cy="89" r="1"/>
+    <circle cx="171" cy="118" r="1"/>
+    <circle cx="171" cy="122" r="1"/>
+    <circle cx="171" cy="151" r="1"/>
+    <circle cx="171" cy="155" r="1"/>
+    <circle cx="171" cy="184" r="1"/>
+    <circle cx="171" cy="188" r="1"/>
+    <circle cx="171" cy="232" r="1.3"/>
+    <circle cx="171" cy="236" r="1.3"/>
+    <circle cx="171" cy="240" r="1.3"/>
+    <circle cx="171" cy="291" r="1.3"/>
+    <circle cx="171" cy="295" r="1.3"/>
+    <circle cx="171" cy="299" r="1.3"/>
+    <circle cx="283" cy="198" r="1.85"/>
+    <circle cx="283" cy="205" r="1.85"/>
+    <circle cx="283" cy="212" r="1.85"/>
+    <circle cx="394" cy="198" r="1.85"/>
+    <circle cx="394" cy="205" r="1.85"/>
+    <circle cx="394" cy="212" r="1.85"/>
+</g>
+
+<!-- Output brackets group scalars by material property. -->
+<g stroke="var(--d-muted)" stroke-width="1.9" fill="none">
+  <path d="M512 83h8v54h-8 M520 110h8"/>
+  <path d="M512 185h8v54h-8 M520 212h8"/>
+  <path d="M510 284h18 M510 344h18"/>
+</g>
+
+<g text-anchor="middle" fill="var(--d-ink)" font-size="21" font-weight="600">
+  <text x="171" y="26">输入向量</text>
+  <text x="283" y="26">隐藏层 1</text>
+  <text x="394" y="26">隐藏层 2</text>
+  <text x="501" y="26">线性输出</text>
+</g>
+<g text-anchor="middle" fill="var(--d-muted)" font-size="21">
+  <text x="171" y="52">81</text><text x="283" y="52">64</text>
+  <text x="394" y="52">64</text><text x="501" y="52">8</text>
+</g>
+<g text-anchor="end" fill="var(--d-ink)" font-size="21">
+  <text x="117" y="132">G₀ 四邻</text>
+  <text x="135" y="231">G₁ 双线性插值</text>
+  <text x="135" y="290">位置编码</text>
+  <text x="135" y="344">归一化 LOD</text>
+</g>
+<g text-anchor="end" fill="var(--d-muted)" font-size="20">
+  <text x="117" y="156">4 × 12</text>
+  <text x="135" y="255">20</text>
+  <text x="135" y="314">12</text>
+  <text x="135" y="368">1</text>
+</g>
+<g fill="var(--d-ink)" font-size="21">
+  <text x="538" y="117">底色 RGB</text>
+  <text x="538" y="219">法线 XYZ</text>
+  <text x="538" y="291">粗糙度</text>
+  <text x="538" y="351">环境遮蔽</text>
+</g>
+</svg>

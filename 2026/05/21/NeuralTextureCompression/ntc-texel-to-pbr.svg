@@ -1,0 +1,125 @@
+<svg style="--diagram-background:#222426;--diagram-text:#e6e4e0;--diagram-accent:#f3b958;--diagram-teal:#4bc292;--diagram-blue:#009dff;--diagram-purple:#8867a5;--diagram-orange:#f3b958" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 496"
+     class="theme-diagram" data-theme-svg="1" role="img"
+     aria-labelledby="ntc-texel-to-pbr-title ntc-texel-to-pbr-desc">
+<title id="ntc-texel-to-pbr-title">从 UV 和目标 mip 采样石板路材质的八个通道</title>
+<desc id="ntc-texel-to-pbr-desc">目标 mip 选定一对特征网格。在同一 UV 处，细网格 G₀ 提供四个邻点各自的向量，粗网格 G₁ 提供一个双线性插值后的向量。再拼入十二个局部位置编码分量和一个归一化 LOD，材质 MLP 一次输出这个 texel 的底色 RGB、法线 XYZ、粗糙度和环境遮蔽，共八个通道。</desc>
+<style>
+.theme-diagram {
+  --d-bg: var(--diagram-background, #ffffff);
+  --d-ink: var(--diagram-text, #383838);
+  --d-accent: var(--diagram-accent, #2bbc8a);
+  --d-muted: color-mix(in srgb, var(--d-ink) 68%, var(--d-bg));
+  --d-border: color-mix(in srgb, var(--d-ink) 19%, var(--d-bg));
+  --d-surface: color-mix(in srgb, var(--d-ink) 3%, var(--d-bg));
+  --d-shadow: color-mix(in srgb, #000000 35%, var(--d-bg));
+  --d-teal: var(--diagram-teal, color-mix(in srgb, var(--d-accent) 76%, var(--d-ink)));
+  --d-blue: var(--diagram-blue, color-mix(in srgb, var(--d-accent) 28%, #6c91bc));
+  --d-purple: var(--diagram-purple, color-mix(in srgb, var(--d-accent) 15%, #a18ab9));
+  --d-orange: var(--diagram-orange, color-mix(in srgb, var(--d-accent) 10%, #d3a462));
+  font-family: var(--diagram-font, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif);
+}
+.theme-diagram text { font-family: inherit; }
+</style>
+<defs>
+  <marker id="ntc-texel-to-pbr-arrow" viewBox="0 0 10 10" markerWidth="5.8" markerHeight="5.8" refX="9" refY="5" orient="auto">
+    <path d="M0 0 10 5 0 10Z" fill="context-stroke"/>
+  </marker>
+</defs>
+<rect width="640" height="496" fill="var(--d-bg)"/>
+
+<!-- Query arguments. -->
+<rect x="158" y="14" width="324" height="51" rx="8" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="2"/>
+<g stroke="var(--d-muted)" stroke-width="2" fill="none">
+  <path d="M181 28h24v24h-24z M193 28v24 M181 40h24"/>
+  <path d="M301 24v31" stroke="var(--d-border)"/>
+  <path d="M320 45l13 7 13-7 M320 39l13 7 13-7 M320 33l13-7 13 7-13 7z"/>
+</g>
+<circle cx="197" cy="35" r="3.8" fill="var(--d-ink)"/>
+<g fill="var(--d-ink)" font-size="25">
+  <text x="220" y="48">UV</text>
+  <text x="358" y="48">目标 mip</text>
+</g>
+<g fill="none" stroke="var(--d-muted)" stroke-width="2.4">
+  <path d="M320 65v17 M174 82h383"/>
+  <g marker-end="url(#ntc-texel-to-pbr-arrow)">
+    <path d="M174 82v20"/>
+    <path d="M414 82v69"/>
+    <path d="M557 82v69"/>
+  </g>
+</g>
+
+<!-- The selected feature level and the very same UV in both grids. -->
+<rect x="18" y="107" width="309" height="157" rx="8" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="2"/>
+<text x="172" y="134" text-anchor="middle" font-size="23" fill="var(--d-ink)">特征层 Fℓ</text>
+<g stroke="var(--d-teal)" fill="none">
+  <rect x="60" y="147" width="72" height="72" stroke-width="2"/>
+  <path d="M78 147v72 M96 147v72 M114 147v72 M60 165h72 M60 183h72 M60 201h72" stroke-width="1.7"/>
+  <rect x="96" y="165" width="18" height="18" fill="color-mix(in srgb, var(--d-teal) 27%, var(--d-bg))" stroke-width="2.2"/>
+  <g fill="var(--d-teal)"><circle cx="96" cy="165" r="3.5"/><circle cx="114" cy="165" r="3.5"/><circle cx="96" cy="183" r="3.5"/><circle cx="114" cy="183" r="3.5"/></g>
+</g>
+<g stroke="var(--d-blue)" fill="none">
+  <rect x="209" y="147" width="72" height="72" stroke-width="2"/>
+  <path d="M245 147v72 M209 183h72" stroke-width="1.7"/>
+  <rect x="245" y="147" width="36" height="36" fill="color-mix(in srgb, var(--d-blue) 17%, var(--d-bg))" stroke-width="2.2"/>
+  <path d="M245 147l10 28 26-28 M245 183l10-8 26 8" stroke-width="1.5" stroke-dasharray="3 2"/>
+  <g fill="var(--d-blue)"><circle cx="245" cy="147" r="3.5"/><circle cx="281" cy="147" r="3.5"/><circle cx="245" cy="183" r="3.5"/><circle cx="281" cy="183" r="3.5"/></g>
+</g>
+<g fill="var(--d-ink)" stroke="var(--d-bg)" stroke-width="1.3">
+  <circle cx="106" cy="175" r="4.6"/><circle cx="255" cy="175" r="4.6"/>
+</g>
+
+<!-- The two coordinate-dependent inputs. -->
+<g stroke="var(--d-purple)" fill="none" stroke-width="2.6" stroke-linejoin="round">
+  <path d="M374 176l20-12 40 24 20-12"/>
+  <path d="M374 201l10-9 20 18 20-18 20 18 10-9"/>
+</g>
+<g stroke="var(--d-orange)" fill="none" stroke-width="2.4">
+  <path d="M527 189h60 M527 183v12 M557 183v12 M587 183v12"/>
+  <circle cx="547" cy="189" r="5" fill="var(--d-orange)"/>
+</g>
+<g fill="var(--d-ink)" font-size="24" text-anchor="middle">
+  <text x="96" y="251">G₀</text><text x="245" y="251">G₁</text>
+  <text x="414" y="251">局部位置编码</text><text x="557" y="251">归一化 LOD</text>
+</g>
+
+<!-- The preserved corners, a bilinear result, and the conditioning scalars. -->
+<g fill="none" stroke-width="2.4">
+  <g stroke="var(--d-teal)">
+    <path d="M96 264v14 M43 278h111"/>
+    <path d="M43 278v18 M80 278v18 M117 278v18 M154 278v18"/>
+  </g>
+  <g stroke="var(--d-blue)">
+    <path d="M221 264l24 17 24-17 M237 264l8 17 8-17 M245 281v15"/>
+  </g>
+  <path d="M414 259v36" stroke="var(--d-purple)" marker-end="url(#ntc-texel-to-pbr-arrow)"/>
+  <path d="M557 259v36" stroke="var(--d-orange)" marker-end="url(#ntc-texel-to-pbr-arrow)"/>
+</g>
+<g stroke-width="1.8">
+  <rect x="24" y="301" width="149" height="38" rx="4" fill="color-mix(in srgb, var(--d-teal) 18%, var(--d-bg))" stroke="var(--d-teal)"/>
+  <path d="M61 301v38 M98 301v38 M135 301v38" stroke="var(--d-teal)"/>
+  <rect x="178" y="301" width="134" height="38" rx="4" fill="color-mix(in srgb, var(--d-blue) 18%, var(--d-bg))" stroke="var(--d-blue)"/>
+  <rect x="317" y="301" width="183" height="38" rx="4" fill="color-mix(in srgb, var(--d-purple) 18%, var(--d-bg))" stroke="var(--d-purple)"/>
+  <rect x="505" y="301" width="111" height="38" rx="4" fill="color-mix(in srgb, var(--d-orange) 18%, var(--d-bg))" stroke="var(--d-orange)"/>
+</g>
+<g fill="var(--d-ink)" font-size="23" text-anchor="middle">
+  <text x="43" y="328">C₀</text><text x="80" y="328">C₀</text><text x="117" y="328">C₀</text><text x="154" y="328">C₀</text>
+  <text x="245" y="328">C₁</text><text x="414" y="328">12</text><text x="557" y="328">1</text>
+</g>
+<g stroke="var(--d-muted)" fill="none" stroke-width="2.4">
+  <path d="M25 346v9h590v-9"/>
+  <path d="M320 355v20" marker-end="url(#ntc-texel-to-pbr-arrow)"/>
+</g>
+<!-- Decoder for the eight-channel Paving Stones material. -->
+<rect x="228" y="380" width="184" height="42" rx="6" fill="var(--d-surface)" stroke="var(--d-muted)" stroke-width="2"/>
+<text x="320" y="410" text-anchor="middle" font-size="25" fill="var(--d-ink)">材质 MLP</text>
+<g stroke="var(--d-muted)" fill="none" stroke-width="2.4">
+  <path d="M320 422v16 M83 438h470"/>
+  <g marker-end="url(#ntc-texel-to-pbr-arrow)">
+    <path d="M83 438v17"/><path d="M234 438v17"/><path d="M394 438v17"/><path d="M553 438v17"/>
+  </g>
+</g>
+<g fill="var(--d-ink)" font-size="25" text-anchor="middle">
+  <text x="83" y="481">底色 RGB</text><text x="234" y="481">法线 XYZ</text>
+  <text x="394" y="481">粗糙度</text><text x="553" y="481">环境遮蔽</text>
+</g>
+</svg>

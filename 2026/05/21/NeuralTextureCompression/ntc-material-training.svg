@@ -1,0 +1,78 @@
+<svg style="--diagram-background:#222426;--diagram-text:#e6e4e0;--diagram-accent:#f3b958;--diagram-teal:#4bc292;--diagram-blue:#009dff;--diagram-purple:#8867a5;--diagram-orange:#f3b958" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 310"
+     class="theme-diagram" data-theme-svg="1" role="img"
+     aria-labelledby="ntc-material-training-title ntc-material-training-desc">
+<title id="ntc-material-training-title">一次材质采样的训练回路</title>
+<desc id="ntc-material-training-desc">从特征网格的一处邻域读取值，经材质专用解码器得到预测通道。与同一 texel 的参考通道比较产生重建误差。虚线将梯度带回解码器权重与被采样的网格。</desc>
+<style>
+.theme-diagram {
+  --d-bg: var(--diagram-background, #ffffff);
+  --d-ink: var(--diagram-text, #383838);
+  --d-accent: var(--diagram-accent, #2bbc8a);
+  --d-muted: color-mix(in srgb, var(--d-ink) 68%, var(--d-bg));
+  --d-border: color-mix(in srgb, var(--d-ink) 19%, var(--d-bg));
+  --d-surface: color-mix(in srgb, var(--d-ink) 3%, var(--d-bg));
+  --d-shadow: color-mix(in srgb, #000000 35%, var(--d-bg));
+  --d-teal: var(--diagram-teal, color-mix(in srgb, var(--d-accent) 76%, var(--d-ink)));
+  --d-blue: var(--diagram-blue, color-mix(in srgb, var(--d-accent) 28%, #6c91bc));
+  --d-purple: var(--diagram-purple, color-mix(in srgb, var(--d-accent) 15%, #a18ab9));
+  --d-orange: var(--diagram-orange, color-mix(in srgb, var(--d-accent) 10%, #d3a462));
+  font-family: var(--diagram-font, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif);
+}
+.theme-diagram text { font-family: inherit; }
+</style>
+<defs>
+  <marker id="ntc-material-training-arrow" viewBox="0 0 10 10" markerWidth="6" markerHeight="6" refX="9" refY="5" orient="auto">
+    <path d="M0 0L10 5L0 10Z" fill="context-stroke"/>
+  </marker>
+</defs>
+<rect width="720" height="310" fill="var(--d-bg)"/>
+
+<!-- Sampled neighborhood and the material-specific weight matrix. -->
+<g stroke="var(--d-teal)" stroke-width="2">
+  <rect x="34" y="136" width="120" height="80" rx="3" fill="var(--d-surface)"/>
+  <rect x="74" y="156" width="40" height="40" fill="color-mix(in srgb, var(--d-teal) 42%, var(--d-bg))"/>
+  <path d="M54 136v80 M74 136v80 M94 136v80 M114 136v80 M134 136v80
+           M34 156h120 M34 176h120 M34 196h120" stroke-width="1.4" fill="none"/>
+  <circle cx="96" cy="174" r="5" fill="var(--d-ink)" stroke="var(--d-bg)"/>
+</g>
+<g stroke="var(--d-purple)" stroke-width="2">
+  <rect x="218" y="136" width="100" height="80" rx="3" fill="var(--d-surface)"/>
+  <path d="M218 136h20v20h20v20h-40z M278 156h40v20h-20v20h-20z M238 196h40v20h-40z"
+        fill="color-mix(in srgb, var(--d-purple) 42%, var(--d-bg))" stroke="none"/>
+  <path d="M238 136v80 M258 136v80 M278 136v80 M298 136v80 M218 156h100 M218 176h100 M218 196h100"
+        stroke-width="1.4" fill="none"/>
+</g>
+
+<!-- Two samples from the same texel, aligned channel for channel. -->
+<g fill="var(--d-blue)">
+  <rect x="424" y="36" width="50" height="9" rx="3"/>
+  <rect x="424" y="50" width="29" height="9" rx="3"/>
+  <rect x="424" y="64" width="65" height="9" rx="3"/>
+  <rect x="424" y="155" width="45" height="9" rx="3"/>
+  <rect x="424" y="169" width="32" height="9" rx="3"/>
+  <rect x="424" y="183" width="61" height="9" rx="3"/>
+</g>
+<path d="M413 31v48 M413 150v48" fill="none" stroke="var(--d-muted)" stroke-width="2"/>
+<g stroke="var(--d-orange)" stroke-width="2">
+  <circle cx="610" cy="172" r="29" fill="var(--d-surface)"/>
+  <path d="M597 162h26 M597 172h13 M597 182h18" fill="none" stroke-width="4" stroke-linecap="round"/>
+</g>
+<g fill="none" stroke="var(--d-muted)" stroke-width="2.8" marker-end="url(#ntc-material-training-arrow)">
+  <path d="M161 174h48"/>
+  <path d="M325 174h77"/>
+  <path d="M498 174h74"/>
+  <path d="M499 54h111v80"/>
+</g>
+<g fill="none" stroke="var(--d-orange)" stroke-width="2.8" stroke-dasharray="7 5">
+  <path d="M643 172h27v85H95v-32" marker-end="url(#ntc-material-training-arrow)"/>
+  <path d="M268 257v-32" marker-end="url(#ntc-material-training-arrow)"/>
+</g>
+<g fill="var(--d-ink)" font-size="27" text-anchor="middle">
+  <text x="94" y="119">特征网格</text>
+  <text x="268" y="119">解码器权重</text>
+  <text x="449" y="119">预测通道</text>
+  <text x="605" y="232">重建误差</text>
+  <text x="343" y="64">材质真值</text>
+  <text x="415" y="289">梯度</text>
+</g>
+</svg>

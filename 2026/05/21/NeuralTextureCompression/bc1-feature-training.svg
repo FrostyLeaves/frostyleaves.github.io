@@ -1,0 +1,98 @@
+<svg style="--diagram-background:#222426;--diagram-text:#e6e4e0;--diagram-accent:#f3b958;--diagram-teal:#4bc292;--diagram-blue:#009dff;--diagram-purple:#8867a5;--diagram-orange:#f3b958" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 372"
+     class="theme-diagram" data-theme-svg="1" role="img"
+     aria-labelledby="bc1-feature-training-title bc1-feature-training-desc">
+<title id="bc1-feature-training-title">BC1 特征纹理与解码器的联合训练</title>
+<desc id="bc1-feature-training-desc">浮点块参数经 BC1 量化，模拟纹理单元解码和过滤，四张纹理的采样结果拼成十二维向量输入 MLP。预测材质与参考材质的重建误差沿虚线回传，更新网络权重和浮点块参数。</desc>
+<style>
+.theme-diagram {
+  --d-bg: var(--diagram-background, #ffffff);
+  --d-ink: var(--diagram-text, #383838);
+  --d-accent: var(--diagram-accent, #2bbc8a);
+  --d-muted: color-mix(in srgb, var(--d-ink) 68%, var(--d-bg));
+  --d-border: color-mix(in srgb, var(--d-ink) 19%, var(--d-bg));
+  --d-surface: color-mix(in srgb, var(--d-ink) 3%, var(--d-bg));
+  --d-shadow: color-mix(in srgb, #000000 35%, var(--d-bg));
+  --d-teal: var(--diagram-teal, color-mix(in srgb, var(--d-accent) 76%, var(--d-ink)));
+  --d-blue: var(--diagram-blue, color-mix(in srgb, var(--d-accent) 28%, #6c91bc));
+  --d-purple: var(--diagram-purple, color-mix(in srgb, var(--d-accent) 15%, #a18ab9));
+  --d-orange: var(--diagram-orange, color-mix(in srgb, var(--d-accent) 10%, #d3a462));
+  font-family: var(--diagram-font, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif);
+}
+.theme-diagram text { font-family: inherit; }
+</style>
+<defs>
+  <marker id="bc1-feature-training-arrow" viewBox="0 0 10 10" markerWidth="5" markerHeight="5" refX="9" refY="5" orient="auto">
+    <path d="M0 0L10 5L0 10Z" fill="context-stroke"/>
+  </marker>
+</defs>
+<rect width="620" height="372" fill="var(--d-bg)"/>
+
+<!-- Forward values from one block, shown before and after quantization. -->
+<g fill="var(--d-ink)" font-size="23" text-anchor="middle" dominant-baseline="central">
+  <text x="112" y="30">浮点块参数</text>
+  <text x="310" y="30">量化端点与索引</text>
+  <text x="508" y="30">模拟采样器</text>
+</g>
+<g fill="var(--d-surface)" stroke-width="2.5">
+  <rect x="42" y="52" width="140" height="48" rx="6" stroke="var(--d-orange)"/>
+  <rect x="238" y="52" width="144" height="48" rx="6" stroke="var(--d-teal)"/>
+  <rect x="455" y="51" width="106" height="50" rx="4" stroke="var(--d-blue)"/>
+</g>
+<g stroke-width="2" fill="none">
+  <path d="M87 52v48 M132 52v48" stroke="var(--d-orange)"/>
+  <path d="M274 52v48 M310 52v48" stroke="var(--d-teal)"/>
+  <path d="M481.5 51v50 M508 51v50 M534.5 51v50 M455 76h106" stroke="var(--d-border)"/>
+</g>
+<g fill="var(--d-ink)" font-size="21" text-anchor="middle" dominant-baseline="central">
+  <text x="65" y="76">A</text><text x="110" y="76">B</text><text x="157" y="76">α</text>
+</g>
+<g fill="var(--d-teal)">
+  <rect x="248" y="66" width="16" height="20" rx="2"/>
+  <rect x="284" y="66" width="16" height="20" rx="2"/>
+  <path d="M319 62h9v5h-9z M333 62h9v5h-9z M347 62h9v5h-9z M361 62h9v5h-9z
+           M319 70h9v5h-9z M333 70h9v5h-9z M347 70h9v5h-9z M361 70h9v5h-9z
+           M319 78h9v5h-9z M333 78h9v5h-9z M347 78h9v5h-9z M361 78h9v5h-9z
+           M319 86h9v5h-9z M333 86h9v5h-9z M347 86h9v5h-9z M361 86h9v5h-9z"/>
+</g>
+<circle cx="508" cy="76" r="13" fill="color-mix(in srgb, var(--d-blue) 26%, var(--d-bg))" stroke="var(--d-blue)" stroke-width="2"/>
+<g stroke="var(--d-muted)" stroke-width="2.5" fill="none" marker-end="url(#bc1-feature-training-arrow)">
+  <path d="M189 76h42"/>
+  <path d="M389 76h59"/>
+  <path d="M508 108v13"/>
+  <path d="M508 147v17"/>
+  <path d="M381 192h68"/>
+  <path d="M508 216v39"/>
+  <path d="M187 284h63"/>
+  <path d="M433 284h-63"/>
+</g>
+<path d="M502 133h-50 M514 133h49" fill="none" stroke="var(--d-border)" stroke-width="1.5"/>
+<g>
+  <path d="M452 129h6v9h-6z M460 129h6v9h-6z M468 129h6v9h-6z" fill="var(--d-teal)"/>
+  <path d="M482 129h6v9h-6z M490 129h6v9h-6z M498 129h6v9h-6z" fill="var(--d-blue)"/>
+  <path d="M512 129h6v9h-6z M520 129h6v9h-6z M528 129h6v9h-6z" fill="var(--d-purple)"/>
+  <path d="M542 129h6v9h-6z M550 129h6v9h-6z M558 129h6v9h-6z" fill="var(--d-orange)"/>
+</g>
+
+<!-- The reconstruction loss takes material values from both branches. -->
+<g stroke-width="2" fill="var(--d-surface)">
+  <rect x="244" y="171" width="130" height="42" rx="6" stroke="var(--d-purple)"/>
+  <rect x="457" y="171" width="102" height="42" rx="6" stroke="var(--d-purple)"/>
+  <rect x="437" y="262" width="142" height="44" rx="6" stroke="var(--d-blue)"/>
+  <rect x="255" y="262" width="110" height="44" rx="6" stroke="var(--d-orange)"/>
+  <rect x="40" y="262" width="142" height="44" rx="6" stroke="var(--d-blue)"/>
+</g>
+<g fill="var(--d-ink)" font-size="23" text-anchor="middle" dominant-baseline="central">
+  <text x="309" y="192">网络权重</text>
+  <text x="508" y="192">MLP</text>
+  <text x="111" y="284">参考材质</text>
+  <text x="310" y="284">L1 误差</text>
+  <text x="508" y="284">预测材质</text>
+</g>
+
+<!-- Gradients update the two sets of trainable parameters. -->
+<g fill="none" stroke="var(--d-orange)" stroke-width="2.5" stroke-dasharray="6 5">
+  <path d="M310 311v28H23V76h13" marker-end="url(#bc1-feature-training-arrow)"/>
+  <path d="M310 256v-36" marker-end="url(#bc1-feature-training-arrow)"/>
+</g>
+<text x="150" y="354" fill="var(--d-ink)" font-size="22" text-anchor="middle" dominant-baseline="central">梯度</text>
+</svg>

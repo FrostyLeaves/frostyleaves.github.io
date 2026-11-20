@@ -1,0 +1,63 @@
+<svg style="--diagram-background:#222426;--diagram-text:#e6e4e0;--diagram-accent:#f3b958;--diagram-teal:#4bc292;--diagram-blue:#009dff;--diagram-purple:#8867a5;--diagram-orange:#f3b958" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 270"
+     class="theme-diagram" data-theme-svg="1" role="img"
+     aria-labelledby="ntc-container-views-title ntc-container-views-desc">
+<title id="ntc-container-views-title">NTC 容器内的索引与数据</title>
+<desc id="ntc-container-views-desc">文件头记录 JSON 描述块和二进制数据块的位置。箭头从一个特征数组层和一个网络层出发，经 JSON 的视图索引，分别指向二进制块里的两段数据。</desc>
+<style>
+.theme-diagram {
+  --d-bg: var(--diagram-background, #ffffff);
+  --d-ink: var(--diagram-text, #383838);
+  --d-accent: var(--diagram-accent, #2bbc8a);
+  --d-muted: color-mix(in srgb, var(--d-ink) 68%, var(--d-bg));
+  --d-border: color-mix(in srgb, var(--d-ink) 19%, var(--d-bg));
+  --d-surface: color-mix(in srgb, var(--d-ink) 3%, var(--d-bg));
+  --d-shadow: color-mix(in srgb, #000000 35%, var(--d-bg));
+  --d-teal: var(--diagram-teal, color-mix(in srgb, var(--d-accent) 76%, var(--d-ink)));
+  --d-blue: var(--diagram-blue, color-mix(in srgb, var(--d-accent) 28%, #6c91bc));
+  --d-purple: var(--diagram-purple, color-mix(in srgb, var(--d-accent) 15%, #a18ab9));
+  --d-orange: var(--diagram-orange, color-mix(in srgb, var(--d-accent) 10%, #d3a462));
+  font-family: var(--diagram-font, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif);
+}
+.theme-diagram text { font-family: inherit; }
+</style>
+<defs>
+  <marker id="ntc-container-views-arrow" viewBox="0 0 10 10" markerWidth="6" markerHeight="6" refX="9" refY="5" orient="auto">
+    <path d="M0 0L10 5L0 10Z" fill="context-stroke"/>
+  </marker>
+</defs>
+<rect width="720" height="270" fill="var(--d-bg)"/>
+
+<!-- The file's two address spaces: file-relative chunks and data-chunk-relative views. -->
+<rect x="27" y="25" width="666" height="53" rx="5" fill="var(--d-surface)" stroke="var(--d-muted)" stroke-width="2"/>
+<path d="M122 25v53 M397 25v53" stroke="var(--d-muted)" stroke-width="2"/>
+<g fill="var(--d-ink)" font-size="26" text-anchor="middle">
+  <text x="75" y="59">文件头</text>
+  <text x="259" y="59">JSON 描述块</text>
+  <text x="544" y="59">二进制数据块</text>
+</g>
+<path d="M259 80v17h-90v22 M259 97h63v22 M544 80v20"
+      fill="none" stroke="var(--d-border)" stroke-width="2"/>
+
+<!-- Two records select views in the JSON index. Each view resolves a byte range. -->
+<g fill="none" stroke-width="2">
+  <rect x="271" y="127" width="105" height="44" rx="5" fill="var(--d-surface)" stroke="var(--d-teal)"/>
+  <rect x="271" y="194" width="105" height="44" rx="5" fill="var(--d-surface)" stroke="var(--d-purple)"/>
+  <rect x="453" y="105" width="235" height="149" rx="4" fill="var(--d-surface)" stroke="var(--d-muted)"/>
+  <rect x="453" y="132" width="235" height="34" fill="color-mix(in srgb, var(--d-teal) 28%, var(--d-bg))" stroke="var(--d-teal)"/>
+  <rect x="453" y="200" width="235" height="32" fill="color-mix(in srgb, var(--d-purple) 27%, var(--d-bg))" stroke="var(--d-purple)"/>
+</g>
+<g fill="none" stroke-width="2.6" marker-end="url(#ntc-container-views-arrow)">
+  <path d="M226 149h36" stroke="var(--d-teal)"/>
+  <path d="M380 149h67" stroke="var(--d-teal)"/>
+  <path d="M226 216h36" stroke="var(--d-purple)"/>
+  <path d="M380 216h67" stroke="var(--d-purple)"/>
+</g>
+<g fill="var(--d-ink)" font-size="26" text-anchor="middle">
+  <text x="147" y="156">layerViews[i]</text>
+  <text x="147" y="223">weightView</text>
+  <text x="324" y="156">views[a]</text>
+  <text x="324" y="223">views[b]</text>
+  <text x="570" y="157">特征层数据</text>
+  <text x="570" y="224">矩阵权重</text>
+</g>
+</svg>

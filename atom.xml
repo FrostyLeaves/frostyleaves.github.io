@@ -14,8 +14,8 @@
     <published>2026-11-20T00:00:00.000Z</published>
     <updated>2026-11-20T00:00:00.000Z</updated>
     <summary type="text">Gelly 是 Garry’s Mod 的流体插件。开发者 Yog 在开发日志（2026 年 5 月 20 日）里放了一张早期截图：水已经聚成一片，表面还像一堆挤在一起的珠子。 那版沿用了经典的屏幕空间粒子渲染。每个粒子画一个朝向相机的四边形，片元着色器求视线与球面的交点，深度测试留下离相机最近的一层。直接从这张深度图算出来的法线会沿着每个球面转向，相邻粒子交界处的亮暗变化尤其明显。通常会先平滑深度，再从新深度图求法线。 Yog 后来改用窄范围深度滤波。当前像素只和深度接近的邻居混合，这样就不会把波峰和后方的水面抹在一起。波峰保住了，但边沿容易被挤成一条尖边。水片上的一些球粒也还看得出来。 把球拉成椭球NVIDIA FleX 会根据每个粒子附近的分布算出各向异性数据。Gelly 用这些数据设置椭球的朝向和轴长。薄水片里的粒子能沿着水片拉长，沿厚度方向压扁。原文的球与椭球对比里，同一组粒子拉长后，原先球与球之间的断口少了。 渲染一个椭球时，Gelly 先算出它在屏幕上的包围矩形，再在片元着色器里把视线变换到粒子的局部空间。在这个空间里，椭球恢复成球。求到交点后，再变换回去计算深度。求交多…</summary>
-    <category term="屏幕空间渲染"/>
     <category term="流体渲染"/>
+    <category term="屏幕空间渲染"/>
     <category term="Garry&apos;s Mod"/>
   </entry>
   <entry>
@@ -25,8 +25,8 @@
     <published>2026-11-19T00:00:00.000Z</published>
     <updated>2026-11-19T00:00:00.000Z</updated>
     <summary type="text">CORTAO 是 Daniel Isheden 开源的屏幕空间环境光遮蔽算法。参考实现和 Carbon Engine 实现均采用 MIT 许可。CORTAO 从深度和法线缓冲采样，用圆盘近似表面周围的几何，再计算半球上哪些方向被挡住。 GTAO 如何压缩遮挡信息GTAO 用一组切面划分半球。每个切面沿屏幕方向采样深度，在像素两侧分别记录最高的遮挡仰角，再对这些地平线所界定的可见角域积分。每侧一个角度就能描述连续的遮蔽区间。遇到细栏杆之类只挡住一小段方向的物体，地平线却可能把杆下本来可见的方向也算进去。采样较稀时，又可能漏掉决定地平线的最高点。 用圆盘保留方向间的空隙CORTAO 围绕着色点沿螺旋分布采样屏幕，把线性深度还原成视空间位置。落到遮蔽半径外或着色面下方的样本先剔除。通过筛选的样本近似成面向着色点的圆盘。圆盘的视角大小随采样区域、样本倾斜程度和距离而变。这样每个样本只遮住自己覆盖的一块方向，圆盘之间的空隙仍可以透出环境光。圆盘只参与当前像素的计算，不需要写出代理网格，也不需要构建光追加速结构。 图中从着色点出发的五条线代表五个采样方向。橙色圆盘各拦住一条，蓝线从圆盘之间或外侧通…</summary>
-    <category term="环境光遮蔽"/>
     <category term="屏幕空间渲染"/>
+    <category term="环境光遮蔽"/>
     <category term="Carbon Engine"/>
   </entry>
   <entry>
@@ -84,6 +84,17 @@
     <category term="RenderDoc"/>
     <category term="图形工具"/>
     <category term="开源项目"/>
+  </entry>
+  <entry>
+    <title>神经纹理压缩 NTC 笔记</title>
+    <id>https://doubleye.me/blog/2026/05/21/NeuralTextureCompression/</id>
+    <link href="https://doubleye.me/blog/2026/05/21/NeuralTextureCompression/"/>
+    <published>2026-05-21T14:00:00.000Z</published>
+    <updated>2026-11-18T07:56:00.000Z</updated>
+    <summary type="text">神经纹理压缩 NTC 把一套材质的多张 PBR 纹理和整条 mipmap 链一起压缩。颜色、法线、粗糙度等贴图共用一组特征网格和一个小型解码网络。采样时，解码器根据局部特征重建所选 mip 上一个 texel 的材质属性。NVIDIA 论文 图中的锈蚀边缘在颜色、金属度和粗糙度贴图里出现在相同位置，法线贴图则接近均匀。联合压缩时，同一组特征就能为前三张图重建这些边缘。图片来自原技术分享。 Vaidyanathan 等人对 20 套材质做了奇异值分解。蓝色奇异值在头几个位置就明显下降，橙色累计曲线随之接近 1。许多通道的变化可以用少数几个方向描述。图裁自 NVIDIA NTC 论文图 3。 图中的建筑边缘和地面纹理缩小后仍然可辨。NTC 利用 mip 链中这种跨尺度的相关性，让多个输出 mip 共用一组特征网格。图片由作者提供。 在 NVIDIA 的 Tuscan Villa 演示中，纹理显存占用从使用 BCn 时的 6.5 GB 降到使用 NTC 时的 970 MB。 截图取自原技术分享收录的 NVIDIA 演示。</summary>
+    <category term="NTC"/>
+    <category term="Neural Rendering"/>
+    <category term="Texture Compression"/>
   </entry>
   <entry>
     <title>Vulkan Memory Allocator 笔记</title>

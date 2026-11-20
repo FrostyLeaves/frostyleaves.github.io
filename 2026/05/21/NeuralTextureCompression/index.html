@@ -1,0 +1,1623 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN" data-palette="blue" data-palette-pref="auto" data-background="sky" data-mode="day" data-mode-pref="day">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>神经纹理压缩 NTC 笔记 · DoubleYe</title>
+  
+  <meta name="theme-color" content="#f0eee8">
+  <meta name="description" content="神经纹理压缩 NTC 把一套材质的多张 PBR 纹理和整条 mipmap 链一起压缩。颜色、法线、粗糙度等贴图共用一组特征网格和一个小型解码网络。采样时，解码器根据局部特征重建所选 mip 上一个 texel 的材质属性。NVIDIA 论文   图中的锈蚀边缘在颜色、金属度和粗糙度贴图里出现在相同位置，法线贴图则接近均匀。联合压缩时，同一组特征就能为前三张图重建这些边缘。图片来自原技术分享。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="神经纹理压缩 NTC 笔记">
+<meta property="og:url" content="https://frostyleaves.github.io/2026/05/21/NeuralTextureCompression/index.html">
+<meta property="og:site_name" content="DoubleYe">
+<meta property="og:description" content="神经纹理压缩 NTC 把一套材质的多张 PBR 纹理和整条 mipmap 链一起压缩。颜色、法线、粗糙度等贴图共用一组特征网格和一个小型解码网络。采样时，解码器根据局部特征重建所选 mip 上一个 texel 的材质属性。NVIDIA 论文   图中的锈蚀边缘在颜色、金属度和粗糙度贴图里出现在相同位置，法线贴图则接近均匀。联合压缩时，同一组特征就能为前三张图重建这些边缘。图片来自原技术分享。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://frostyleaves.github.io/2026/05/21/NeuralTextureCompression/pbr-textures.png">
+<meta property="og:image" content="https://frostyleaves.github.io/2026/05/21/NeuralTextureCompression/ntc-paper-channel-svd.png">
+<meta property="og:image" content="https://frostyleaves.github.io/2026/05/21/NeuralTextureCompression/mipmaps.png">
+<meta property="og:image" content="https://frostyleaves.github.io/2026/05/21/NeuralTextureCompression/ref-nvidia-demo.jpg">
+<meta property="og:image" content="https://frostyleaves.github.io/2026/05/21/NeuralTextureCompression/ntc-paper-alignment-failure.png">
+<meta property="og:image" content="https://frostyleaves.github.io/2026/05/21/NeuralTextureCompression/Fig1.png">
+<meta property="og:image" content="https://frostyleaves.github.io/2026/05/21/NeuralTextureCompression/ntc-albedo-comparison.jpg">
+<meta property="og:image" content="https://frostyleaves.github.io/2026/05/21/NeuralTextureCompression/ntc-normal-comparison.jpg">
+<meta property="og:image" content="https://frostyleaves.github.io/2026/05/21/NeuralTextureCompression/ntc-paper-rate-distortion.png">
+<meta property="og:image" content="https://frostyleaves.github.io/2026/05/21/NeuralTextureCompression/ntc-9.png">
+<meta property="og:image" content="https://frostyleaves.github.io/2026/05/21/NeuralTextureCompression/ntc-paper-dual-grid.png">
+<meta property="og:image" content="https://frostyleaves.github.io/2026/05/21/NeuralTextureCompression/nerf-positional-encoding.png">
+<meta property="og:image" content="https://frostyleaves.github.io/2026/05/21/NeuralTextureCompression/ntc-paper-position-encoding.png">
+<meta property="og:image" content="https://frostyleaves.github.io/2026/05/21/NeuralTextureCompression/ntc-paper-feature-profiles.png">
+<meta property="og:image" content="https://frostyleaves.github.io/2026/05/21/NeuralTextureCompression/ntc-paper-loss-comparison.png">
+<meta property="og:image" content="https://frostyleaves.github.io/2026/05/21/NeuralTextureCompression/ntc-paper-training-performance.png">
+<meta property="og:image" content="https://frostyleaves.github.io/2026/05/21/NeuralTextureCompression/ntc-paper-stochastic-filtering.png">
+<meta property="og:image" content="https://frostyleaves.github.io/2026/05/21/NeuralTextureCompression/ntc-flighthelmet-preview.png">
+<meta property="og:image" content="https://frostyleaves.github.io/2026/05/21/NeuralTextureCompression/ntc-latent-slice1-channels.png">
+<meta property="og:image" content="https://frostyleaves.github.io/2026/05/21/NeuralTextureCompression/intel-tsnc-deployment-strategy.jpg">
+<meta property="og:image" content="https://frostyleaves.github.io/2026/05/21/NeuralTextureCompression/bcf-block-training.png">
+<meta property="og:image" content="https://frostyleaves.github.io/2026/05/21/NeuralTextureCompression/intel-bcf1-quality-variants.png">
+<meta property="og:image" content="https://frostyleaves.github.io/2026/05/21/NeuralTextureCompression/intel-bcf-rate-distortion.png">
+<meta property="og:image" content="https://frostyleaves.github.io/2026/05/21/NeuralTextureCompression/ubisoft-mirage-feature-textures.png">
+<meta property="article:published_time" content="2026-05-21T14:00:00.000Z">
+<meta property="article:modified_time" content="2026-11-18T07:56:00.000Z">
+<meta property="article:author" content="DoubleYe">
+<meta property="article:tag" content="NTC">
+<meta property="article:tag" content="Neural Rendering">
+<meta property="article:tag" content="Texture Compression">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://frostyleaves.github.io/2026/05/21/NeuralTextureCompression/pbr-textures.png">
+  
+    <link rel="icon" href="/images/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" sizes="192x192" href="/images/favicon-192x192.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+  
+  <link rel="alternate" type="application/atom+xml" title="DoubleYe" href="https://doubleye.me/blog/atom.xml">
+  
+<link rel="stylesheet" href="/css/fonts.css">
+
+  
+<link rel="stylesheet" href="/css/main.css">
+
+  <style id="palette-css">:root,:root[data-palette="blue"]{--accent:#009dff;--bg-1:#009dff;--bg-2:#1f4f77;--bg-3:#1c2628}
+.tone-blue{--tone:#009dff}
+:root[data-palette="green"]{--accent:#4bc292;--bg-1:#4bc292;--bg-2:#1f5e4a;--bg-3:#1c2628}
+.tone-green{--tone:#4bc292}
+:root[data-palette="gold"]{--accent:#f3b958;--bg-1:#f3b958;--bg-2:#7e5a1e;--bg-3:#1c2628}
+.tone-gold{--tone:#f3b958}
+:root[data-palette="red"]{--accent:#fe5f55;--bg-1:#fe5f55;--bg-2:#6e2a26;--bg-3:#1c2628}
+.tone-red{--tone:#fe5f55}</style>
+  <style id="language-css">:root[lang="zh-CN"] [data-ui-lang]:not([data-ui-lang="zh-CN"]){display:none}
+:root[lang="en"] [data-ui-lang]:not([data-ui-lang="en"]){display:none}</style>
+  <script>
+    (function () {
+      // Keep reader preferences when upgrading from the theme's former name.
+      function migrate(storage, names) {
+        names.forEach(function (name) {
+          var key = 'drift-' + name;
+          if (storage.getItem(key) !== null) return;
+          var previous = storage.getItem('doubleye-' + name);
+          if (previous !== null) storage.setItem(key, previous);
+        });
+      }
+      try { migrate(localStorage, ['palette', 'background', 'mode']); } catch (e) { /* storage may be blocked */ }
+      try { migrate(sessionStorage, ['bg-time']); } catch (e) { /* storage may be blocked */ }
+      var root = document.documentElement;
+      var languages = ["zh-CN","en"], language = null;
+      try { language = localStorage.getItem('drift-language'); } catch (e) { /* storage may be blocked */ }
+      root.lang = languages.indexOf(language) >= 0 ? language : "zh-CN";
+      var names = ["blue","green","gold","red"], auto = 'blue', pref = null;
+      try { pref = localStorage.getItem('drift-palette'); } catch (e) { pref = null; }
+      if (names.indexOf(pref) < 0) pref = 'auto';
+      root.setAttribute('data-palette', pref === 'auto' ? auto : pref);
+      root.setAttribute('data-palette-pref', pref);
+      var scenes = ["sky","ocean"], scene = null, mode = null;
+      try { scene = localStorage.getItem('drift-background'); mode = localStorage.getItem('drift-mode'); } catch (e) { scene = null; mode = null; }
+      if (scenes.indexOf(scene) < 0) scene = 'sky';
+      if (mode !== 'auto' && mode !== 'day' && mode !== 'night') mode = 'day';
+      root.setAttribute('data-mode-pref', mode);
+      if (mode === 'auto') mode = window.matchMedia && !window.matchMedia('(prefers-color-scheme: dark)').matches ? 'day' : 'night';
+      root.setAttribute('data-background', scene);
+      root.setAttribute('data-mode', mode);
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute('content', mode === 'day' ? '#f0eee8' : '#191a1c');
+    })();
+    window.__THEME = {
+      palettes: {"blue":{"colors":["#009dff","#1f4f77","#1c2628"],"accent":"#009dff"},"green":{"colors":["#4bc292","#1f5e4a","#1c2628"],"accent":"#4bc292"},"gold":{"colors":["#f3b958","#7e5a1e","#1c2628"],"accent":"#f3b958"},"red":{"colors":["#fe5f55","#6e2a26","#1c2628"],"accent":"#fe5f55"}},
+      auto: 'blue',
+      labels: {"auto":"自动","toggle":"切换配色","copy":"复制","copied":"已复制","sceneToggle":"切换背景","scenes":{"sky":"天空","ocean":"海洋"},"modeToggle":"切换日夜","modes":{"auto":"自动","day":"日间","night":"夜间"},"blue":"湖蓝","green":"青翠","gold":"琥珀","red":"绯红"},
+      background: {"enable":true,"style":"sky","styles":["sky","ocean"],"mode":"day","speed":1,"fps":30,"pixel_filter":740},
+      juice: {"tilt":true,"wobble":true,"foil":"pixel-glass","text":"titles"},
+      i18n: {"languages":["zh-CN","en"],"default":"zh-CN","dictionaries":{"zh-CN":{"nav.home":"首页","nav.posts":"文章","nav.categories":"分类","nav.tags":"标签","nav.archives":"归档","language.toggle":"切换语言","language.name":"中文","language.short":"中","pagination":"翻页","hero.posts":"篇文章","hero.categories":"个分类","hero.tags":"个标签","post.navigation":"文章导航","post.toc":"目录","post.reading_progress":"阅读进度","post.reading_hint":"拖动刻度跳转 · 点击章节定位","post.updated":"更新于","post.words":"字","post.minutes":"分钟","post.prev":"上一篇","post.next":"下一篇","post.license_prefix":"本文采用","post.license_suffix":"许可","post.copy":"复制","post.copied":"已复制","post.scroll_down":"向下滚动","post.tags":"标签","archive.title":"归档","archive.total_prefix":"共","archive.total_suffix":"篇","category.title":"分类","tag.title":"标签","footer.powered":"由 Hexo 驱动","palette.toggle":"切换配色","palette.auto":"自动","palette.blue":"湖蓝","palette.green":"青翠","palette.gold":"琥珀","palette.red":"绯红","background.toggle":"切换背景","background.sky":"天空","background.ocean":"海洋","mode.toggle":"切换日夜","mode.auto":"自动","mode.day":"日间","mode.night":"夜间","error404.title":"页面不存在","error404.description":"你访问的页面可能已被移动或删除。","error404.home":"返回首页","skip":"跳到正文"},"en":{"nav.home":"Home","nav.posts":"Posts","nav.categories":"Categories","nav.tags":"Tags","nav.archives":"Archives","language.toggle":"Language","language.name":"English","language.short":"EN","pagination":"Pagination","hero.posts":"posts","hero.categories":"categories","hero.tags":"tags","post.navigation":"Post navigation","post.toc":"Contents","post.reading_progress":"Reading progress","post.reading_hint":"Drag the ruler · Click a chapter","post.updated":"Updated","post.words":"words","post.minutes":"min","post.prev":"Newer","post.next":"Older","post.license_prefix":"Licensed under","post.license_suffix":"","post.copy":"Copy","post.copied":"Copied","post.scroll_down":"Scroll down","post.tags":"Tags","archive.title":"Archives","archive.total_prefix":"","archive.total_suffix":"posts","category.title":"Categories","tag.title":"Tags","footer.powered":"Powered by Hexo","palette.toggle":"Palette","palette.auto":"auto","palette.blue":"Lake","palette.green":"Jade","palette.gold":"Amber","palette.red":"Crimson","background.toggle":"Backdrop","background.sky":"Sky","background.ocean":"Ocean","mode.toggle":"Day / night","mode.auto":"Auto","mode.day":"Day","mode.night":"Night","error404.title":"Page not found","error404.description":"The page you are looking for may have been moved or removed.","error404.home":"Back to home","skip":"Skip to content"}}}
+    };
+  </script>
+<meta name="generator" content="Hexo 8.1.2"><style id="theme-svg-layout">
+.theme-svg-figure{margin:1.7rem 0;max-width:100%;line-height:0}
+.theme-svg-figure .theme-svg-link,.theme-svg-figure .theme-svg-panel{display:block;background-image:none!important;text-decoration:none!important;border:0;border-radius:10px;overflow:hidden}
+.theme-svg-figure .theme-diagram{display:block;width:100%;height:auto;max-width:100%}
+.theme-svg-figure .theme-diagram,.theme-svg-figure .theme-diagram *{transition:fill .3s ease,stroke .3s ease}
+.theme-svg-figure .theme-svg-link:focus-visible{outline:2px solid currentColor;outline-offset:4px}
+@media (prefers-reduced-motion:reduce){.theme-svg-figure .theme-diagram,.theme-svg-figure .theme-diagram *{transition:none}}
+@media print{.theme-svg-figure{break-inside:avoid}}
+</style><link rel="canonical" href="https://doubleye.me/blog/2026/05/21/NeuralTextureCompression/">
+</head>
+
+
+<body class="juice-tilt juice-wobble juice-foil text-titles" data-card-effect="pixel-glass">
+  <a class="skip-link" href="#main"><span data-ui-lang="zh-CN">跳到正文</span><span data-ui-lang="en">Skip to content</span></a>
+  <div class="backdrop" id="backdrop" aria-hidden="true"><canvas class="backdrop__canvas" id="backdrop-canvas"></canvas><canvas class="backdrop__snapshot" id="backdrop-snapshot"></canvas></div>
+  
+<header class="site-header" id="site-header">
+  <div class="site-header__inner">
+    <a class="site-brand px" href="/" aria-label="DoubleYe"><span class="w"><span class="ch" style="--i:0" aria-hidden="true">D</span><span class="ch" style="--i:1" aria-hidden="true">o</span><span class="ch" style="--i:2" aria-hidden="true">u</span><span class="ch" style="--i:3" aria-hidden="true">b</span><span class="ch" style="--i:4" aria-hidden="true">l</span><span class="ch" style="--i:5" aria-hidden="true">e</span><span class="ch" style="--i:6" aria-hidden="true">Y</span><span class="ch" style="--i:7" aria-hidden="true">e</span></span></a>
+    <nav class="site-nav" data-i18n-aria-label="nav.home" aria-label="首页">
+      
+        <a class="btn btn--nav px" href="/archives/"><span data-ui-lang="zh-CN">文章</span><span data-ui-lang="en">Posts</span></a>
+      
+        <a class="btn btn--nav px" href="/categories/"><span data-ui-lang="zh-CN">分类</span><span data-ui-lang="en">Categories</span></a>
+      
+        <a class="btn btn--nav px" href="/tags/"><span data-ui-lang="zh-CN">标签</span><span data-ui-lang="en">Tags</span></a>
+      
+        <a class="btn btn--nav px" href="/"><span data-ui-lang="zh-CN">首页</span><span data-ui-lang="en">Home</span></a>
+      
+      <div class="site-controls">
+      <button class="palette-toggle" id="palette-toggle" type="button" aria-label="切换配色: 自动 · 湖蓝" title="切换配色: 自动 · 湖蓝">
+        <span class="palette-toggle__disc" aria-hidden="true"></span>
+        <span class="palette-toggle__label px" id="palette-label"><span data-ui-lang="zh-CN">自动</span><span data-ui-lang="en">auto</span></span>
+      </button>
+      
+      <button class="scene-toggle" id="background-toggle" type="button" aria-label="切换背景" title="切换背景: 天空">
+        <span class="scene-toggle__icon" aria-hidden="true">
+          <svg class="scene-icon scene-icon--sky" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="2" y="0" width="1" height="5"/><rect x="0" y="2" width="5" height="1"/><rect x="1" y="1" width="1" height="1"/><rect x="3" y="1" width="1" height="1"/><rect x="1" y="3" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="6" y="5" width="4" height="1"/><rect x="5" y="6" width="6" height="1"/><rect x="4" y="7" width="8" height="1"/><rect x="3" y="8" width="9" height="2"/></svg>
+          <svg class="scene-icon scene-icon--ocean" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="1" y="2" width="3" height="1"/><rect x="6" y="2" width="3" height="1"/><rect x="0" y="3" width="1" height="1"/><rect x="4" y="3" width="2" height="1"/><rect x="9" y="3" width="2" height="1"/><rect x="1" y="6" width="3" height="1"/><rect x="6" y="6" width="3" height="1"/><rect x="0" y="7" width="1" height="1"/><rect x="4" y="7" width="2" height="1"/><rect x="9" y="7" width="2" height="1"/><rect x="1" y="10" width="3" height="1"/><rect x="6" y="10" width="3" height="1"/><rect x="0" y="11" width="1" height="1"/><rect x="4" y="11" width="2" height="1"/><rect x="9" y="11" width="2" height="1"/></svg>
+        </span>
+        <span class="scene-toggle__label px" id="background-label"><span data-ui-lang="zh-CN">天空</span><span data-ui-lang="en">Sky</span></span>
+      </button>
+      
+      <button class="scene-toggle mode-toggle" id="mode-toggle" type="button" aria-label="切换日夜" title="切换日夜: 日间">
+        <span class="scene-toggle__icon" aria-hidden="true">
+          <svg class="mode-icon mode-icon--auto" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="1" y="1" width="10" height="1"/><rect x="0" y="2" width="1" height="5"/><rect x="11" y="2" width="1" height="5"/><rect x="1" y="7" width="10" height="1"/><rect x="5" y="8" width="2" height="2"/><rect x="3" y="10" width="6" height="1"/></svg>
+          <svg class="mode-icon mode-icon--night" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="4" y="1" width="4" height="1"/><rect x="3" y="2" width="2" height="1"/><rect x="2" y="3" width="2" height="2"/><rect x="2" y="5" width="2" height="2"/><rect x="2" y="7" width="2" height="2"/><rect x="3" y="9" width="2" height="1"/><rect x="4" y="10" width="4" height="1"/><rect x="8" y="9" width="2" height="1"/><rect x="8" y="2" width="2" height="1"/></svg>
+          <svg class="mode-icon mode-icon--day" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="4" y="4" width="4" height="4"/><rect x="5" y="0" width="2" height="2"/><rect x="5" y="10" width="2" height="2"/><rect x="0" y="5" width="2" height="2"/><rect x="10" y="5" width="2" height="2"/><rect x="1" y="1" width="2" height="1"/><rect x="1" y="2" width="1" height="1"/><rect x="9" y="1" width="2" height="1"/><rect x="10" y="2" width="1" height="1"/><rect x="1" y="9" width="1" height="1"/><rect x="1" y="10" width="2" height="1"/><rect x="10" y="9" width="1" height="1"/><rect x="9" y="10" width="2" height="1"/></svg>
+        </span>
+        <span class="scene-toggle__label px" id="mode-label"><span data-ui-lang="zh-CN">日间</span><span data-ui-lang="en">Day</span></span>
+      </button>
+      
+      <button class="language-toggle px" id="language-toggle" type="button" title="切换语言" aria-label="切换语言"><span data-ui-lang="zh-CN">中</span><span data-ui-lang="en">EN</span></button>
+      
+      </div>
+    </nav>
+  </div>
+</header>
+
+  <main id="main" class="site-main">
+    
+<article class="post-layout has-toc" itemscope itemtype="https://schema.org/BlogPosting">
+  
+  <div class="reading-mobile" hidden role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-i18n-aria-label="post.reading_progress" aria-label="阅读进度"><span></span></div>
+  
+  <div class="post container">
+    <header class="post-header">
+      <h1 class="post-title px title-anim" itemprop="headline" aria-label="神经纹理压缩 NTC 笔记"><span class="ch" style="--i:0" aria-hidden="true">神</span><span class="ch" style="--i:1" aria-hidden="true">经</span><span class="ch" style="--i:2" aria-hidden="true">纹</span><span class="ch" style="--i:3" aria-hidden="true">理</span><span class="ch" style="--i:4" aria-hidden="true">压</span><span class="ch" style="--i:5" aria-hidden="true">缩</span> <span class="w"><span class="ch" style="--i:6" aria-hidden="true">N</span><span class="ch" style="--i:7" aria-hidden="true">T</span><span class="ch" style="--i:8" aria-hidden="true">C</span></span> <span class="ch" style="--i:9" aria-hidden="true">笔</span><span class="ch" style="--i:10" aria-hidden="true">记</span></h1>
+      
+<div class="post-meta">
+  <time class="badge badge--date px" datetime="2026-05-21T14:00:00.000Z">2026-05-21</time>
+  
+    <a class="seal tone-blue px" href="/categories/%E6%B8%B2%E6%9F%93/"><span class="seal__dot" aria-hidden="true"></span>渲染</a>
+  
+  <span class="badge badge--blue px post-meta__words">8,385 <span data-ui-lang="zh-CN">字</span><span data-ui-lang="en">words</span></span>
+  <span class="badge badge--red px">24 <span data-ui-lang="zh-CN">分钟</span><span data-ui-lang="en">min</span></span>
+  
+</div>
+
+    </header>
+
+    
+    <details class="toc-mobile panel">
+      <summary class="px"><span data-ui-lang="zh-CN">目录</span><span data-ui-lang="en">Contents</span><span class="toc-mobile__percent" data-reading-percent aria-hidden="true"></span></summary>
+      
+
+<nav class="toc panel" data-i18n-aria-label="post.toc" aria-label="目录">
+  <div class="toc__title px"><span data-ui-lang="zh-CN">目录</span><span data-ui-lang="en">Contents</span></div>
+  <ol class="toc-list"><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E4%B8%80%E5%A5%97%E6%9D%90%E8%B4%A8%E5%85%B1%E4%BA%AB%E5%8E%8B%E7%BC%A9%E8%A1%A8%E7%A4%BA"><span class="toc-list-text">一套材质共享压缩表示</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E8%A7%A3%E7%A0%81%E5%90%8E%E7%9A%84%E7%BA%B9%E7%90%86%E8%B4%A8%E9%87%8F"><span class="toc-list-text">解码后的纹理质量</span></a><ol class="toc-list-child"><li class="toc-list-item toc-list-level-3"><a class="toc-list-link" href="#%E8%B4%A8%E9%87%8F%E4%B8%8E%E7%A0%81%E7%8E%87"><span class="toc-list-text">质量与码率</span></a></li></ol></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E7%89%B9%E5%BE%81%E7%BD%91%E6%A0%BC%E5%A6%82%E4%BD%95%E9%87%8D%E5%BB%BA%E7%BA%B9%E7%90%86"><span class="toc-list-text">特征网格如何重建纹理</span></a><ol class="toc-list-child"><li class="toc-list-item toc-list-level-3"><a class="toc-list-link" href="#%E5%90%8C%E4%B8%80%E4%B8%AA-texel-%E6%80%8E%E6%A0%B7%E4%BB%8E%E4%B8%A4%E5%BC%A0%E7%BD%91%E6%A0%BC%E5%8F%96%E6%A0%B7"><span class="toc-list-text">同一个 texel 怎样从两张网格取样</span></a></li><li class="toc-list-item toc-list-level-3"><a class="toc-list-link" href="#%E6%A0%BC%E7%82%B9%E4%B9%8B%E9%97%B4%E7%9A%84%E4%BD%8D%E7%BD%AE%E7%BC%96%E7%A0%81"><span class="toc-list-text">格点之间的位置编码</span></a></li></ol></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%A4%9A%E4%B8%AA-mip-%E5%85%B1%E4%BA%AB%E7%89%B9%E5%BE%81%E5%B1%82"><span class="toc-list-text">多个 mip 共享特征层</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E8%A7%A3%E7%A0%81%E7%BD%91%E7%BB%9C%E7%9A%84%E7%BB%93%E6%9E%84%E4%B8%8E%E5%8F%82%E6%95%B0%E9%87%8F"><span class="toc-list-text">解码网络的结构与参数量</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E4%BB%8E-UV-%E5%88%B0-PBR-%E6%9D%90%E8%B4%A8%E9%80%9A%E9%81%93"><span class="toc-list-text">从 UV 到 PBR 材质通道</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E9%87%8F%E5%8C%96%E5%8F%82%E4%B8%8E%E8%AE%AD%E7%BB%83"><span class="toc-list-text">量化参与训练</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%A6%82%E4%BD%95%E5%A4%84%E7%90%86%E7%BA%B9%E7%90%86%E8%BF%87%E6%BB%A4"><span class="toc-list-text">如何处理纹理过滤</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E9%87%87%E6%A0%B7%E6%88%90%E6%9C%AC"><span class="toc-list-text">采样成本</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#NTC-SDK-%E6%B5%8B%E8%AF%95"><span class="toc-list-text">NTC SDK 测试</span></a><ol class="toc-list-child"><li class="toc-list-item toc-list-level-3"><a class="toc-list-link" href="#%E7%89%B9%E5%BE%81%E7%BA%B9%E7%90%86%E6%95%B0%E7%BB%84%E7%9A%84%E9%80%9A%E9%81%93%E5%B8%83%E5%B1%80"><span class="toc-list-text">特征纹理数组的通道布局</span></a></li><li class="toc-list-item toc-list-level-3"><a class="toc-list-link" href="#FlightHelmet-%E7%9A%84%E4%B8%80%E6%AC%A1%E6%9D%90%E8%B4%A8%E9%87%87%E6%A0%B7"><span class="toc-list-text">FlightHelmet 的一次材质采样</span></a></li><li class="toc-list-item toc-list-level-3"><a class="toc-list-link" href="#%E7%A1%AC%E4%BB%B6%E5%8A%A0%E9%80%9F%E7%BB%93%E6%9E%84"><span class="toc-list-text">硬件加速结构</span></a></li><li class="toc-list-item toc-list-level-3"><a class="toc-list-link" href="#%E4%B8%A4%E5%A5%97%E4%BD%8E%E7%B2%BE%E5%BA%A6%E6%9D%83%E9%87%8D%E6%80%8E%E6%A0%B7%E8%AE%AD%E7%BB%83"><span class="toc-list-text">两套低精度权重怎样训练</span></a></li><li class="toc-list-item toc-list-level-3"><a class="toc-list-link" href="#%E5%88%86%E5%BC%80%E5%A4%84%E7%90%86%E7%A3%81%E7%9B%98%E5%8E%8B%E7%BC%A9%E4%B8%8E-GPU-%E8%AE%BF%E9%97%AE"><span class="toc-list-text">分开处理磁盘压缩与 GPU 访问</span></a></li></ol></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E7%A5%9E%E7%BB%8F%E7%BA%B9%E7%90%86%E5%8E%8B%E7%BC%A9%E7%9A%84%E4%BD%BF%E7%94%A8%E7%AD%96%E7%95%A5"><span class="toc-list-text">神经纹理压缩的使用策略</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E4%BD%BF%E7%94%A8-BC-%E7%89%B9%E5%BE%81%E7%BA%B9%E7%90%86"><span class="toc-list-text">使用 BC 特征纹理</span></a><ol class="toc-list-child"><li class="toc-list-item toc-list-level-3"><a class="toc-list-link" href="#%E7%9B%B4%E6%8E%A5%E8%AE%AD%E7%BB%83-BC1-%E7%89%B9%E5%BE%81%E7%BA%B9%E7%90%86"><span class="toc-list-text">直接训练 BC1 特征纹理</span></a></li><li class="toc-list-item toc-list-level-3"><a class="toc-list-link" href="#BC6H"><span class="toc-list-text">BC6H</span></a></li><li class="toc-list-item toc-list-level-3"><a class="toc-list-link" href="#%E3%80%8A%E5%88%BA%E5%AE%A2%E4%BF%A1%E6%9D%A1-%E5%B9%BB%E6%99%AF%E3%80%8B%E7%9A%84%E7%89%B9%E5%BE%81%E7%BA%B9%E7%90%86"><span class="toc-list-text">《刺客信条 幻景》的特征纹理</span></a></li></ol></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E6%80%BB%E7%BB%93"><span class="toc-list-text">总结</span></a></li></ol>
+</nav>
+
+
+    </details>
+    
+
+    <div class="post-body panel">
+      <div class="post-content" id="drift-post-content" itemprop="articleBody" lang="zh-CN">
+        <p>神经纹理压缩 NTC 把一套材质的多张 PBR 纹理和整条 mipmap 链一起压缩。颜色、法线、粗糙度等贴图共用一组特征网格和一个小型解码网络。采样时，解码器根据局部特征重建所选 mip 上一个 texel 的材质属性。<a target="_blank" rel="noopener" href="https://research.nvidia.com/labs/rtr/neural_texture_compression/">NVIDIA 论文</a></p>
+<img loading="lazy" decoding="async" src="/2026/05/21/NeuralTextureCompression/pbr-textures.png" class="" title="同一材质的 PBR 贴图" alt="颜色、金属度和粗糙度图中的锈蚀边缘位置一致">
+
+<p>图中的锈蚀边缘在颜色、金属度和粗糙度贴图里出现在相同位置，法线贴图则接近均匀。联合压缩时，同一组特征就能为前三张图重建这些边缘。图片来自原技术分享。</p>
+<img loading="lazy" decoding="async" src="/2026/05/21/NeuralTextureCompression/ntc-paper-channel-svd.png" class="" title="材质通道的奇异值分布" alt="蓝点是归一化奇异值，橙线是累计分布，前几个奇异值占了大部分">
+
+<p>Vaidyanathan 等人对 20 套材质做了奇异值分解。蓝色奇异值在头几个位置就明显下降，橙色累计曲线随之接近 1。许多通道的变化可以用少数几个方向描述。图裁自 NVIDIA NTC 论文图 3。</p>
+<img loading="lazy" decoding="async" src="/2026/05/21/NeuralTextureCompression/mipmaps.png" class="" title="同一图像的不同尺度" alt="相邻尺度的图像仍能辨认出相同的建筑边缘和地面纹理">
+
+<p>图中的建筑边缘和地面纹理缩小后仍然可辨。NTC 利用 mip 链中这种跨尺度的相关性，让多个输出 mip 共用一组特征网格。图片由作者提供。</p>
+<p>在 NVIDIA 的 Tuscan Villa 演示中，纹理显存占用从使用 BCn 时的 6.5 GB 降到使用 NTC 时的 970 MB。</p>
+<img loading="lazy" decoding="async" src="/2026/05/21/NeuralTextureCompression/ref-nvidia-demo.jpg" class="" title="Tuscan Villa 演示" alt="同一场景使用 BCn 时纹理显存为 6.5 GB，保留 NTC 时为 970 MB">
+
+<p>截图取自原技术分享收录的 NVIDIA 演示。</p>
+<span id="more"></span>
+
+<h2 id="一套材质共享压缩表示"><a href="#一套材质共享压缩表示" class="headerlink" title="一套材质共享压缩表示"></a>一套材质共享压缩表示</h2><p>压缩结果包含两部分数据。</p>
+<ul>
+<li><strong>特征网格（latent grid）</strong> 保存随空间位置变化的信息。每个格点存储若干个量化数值，这些数值经过训练后用于重建局部纹理。</li>
+<li><strong>解码器参数</strong>包括小型多层感知机（MLP）的权重和偏置，决定如何把特征转换为纹理值。每套材质单独训练网格与权重，解码器只需要重建这一套纹理。</li>
+</ul>
+<p>采样时只需读取目标位置附近的特征，用这套材质的权重解码，就能在 shader 里重建一个 texel。这种局部访问也适合纹理流送。<a target="_blank" rel="noopener" href="https://research.nvidia.com/labs/rtr/neural_texture_compression/">原始论文</a></p>
+<p>解码器一次预测同一 texel 的全部材质通道，所以输入贴图需要对齐、使用相同分辨率。单独以较低分辨率制作的粗糙度图需要先重采样。</p>
+<img loading="lazy" decoding="async" src="/2026/05/21/NeuralTextureCompression/ntc-paper-alignment-failure.png" class="" title="低码率 NTC 的重建失真示例" alt="上排是参考贴图，下排是 NTC 0.2 的结果，c 列展示特征串入其他通道">
+
+<p>看图中 c 列，输入贴图未对齐时，联合重建会把一个通道里的特征带到另一个通道。图裁自 Vaidyanathan 等人的 NVIDIA NTC 论文图 12。<a target="_blank" rel="noopener" href="https://research.nvidia.com/labs/rtr/neural_texture_compression/assets/ntc_small_size.pdf#page=11">论文第 7.2 节</a></p>
+<figure class="theme-svg-figure theme-svg-figure--asset"><a class="theme-svg-link" href="&#x2F;2026&#x2F;05&#x2F;21&#x2F;NeuralTextureCompression&#x2F;ntc-shared-features.svg" target="_blank" rel="noopener" aria-label="材质纹理、共享特征网格与解码网络"><svg style="--diagram-background:var(--color-background, #222426);--diagram-text:var(--color-text, #e6e4e0);--diagram-accent:var(--color-accent-1, #f3b958);--diagram-teal:var(--color-diagram-teal, #4bc292);--diagram-blue:var(--color-diagram-blue, #009dff);--diagram-purple:var(--color-diagram-purple, #8867a5);--diagram-orange:var(--color-diagram-orange, #f3b958)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 415" class="theme-diagram" data-theme-svg="1" role="img" aria-labelledby="diagram-b43822059e-0-ntc-shared-features-title diagram-b43822059e-0-ntc-shared-features-desc">
+<title id="diagram-b43822059e-0-ntc-shared-features-title">NTC 的共享特征表示</title>
+<desc id="diagram-b43822059e-0-ntc-shared-features-desc">多个材质纹理共同压缩为共享特征网格与网络权重。解码网络从同一组空间特征重建多个材质通道。</desc>
+<style>
+.theme-diagram {
+  --d-bg: var(--diagram-background, #ffffff);
+  --d-ink: var(--diagram-text, #383838);
+  --d-accent: var(--diagram-accent, #2bbc8a);
+  --d-muted: color-mix(in srgb, var(--d-ink) 68%, var(--d-bg));
+  --d-border: color-mix(in srgb, var(--d-ink) 19%, var(--d-bg));
+  --d-surface: color-mix(in srgb, var(--d-ink) 3%, var(--d-bg));
+  --d-shadow: color-mix(in srgb, #000000 35%, var(--d-bg));
+  --d-teal: var(--diagram-teal, color-mix(in srgb, var(--d-accent) 76%, var(--d-ink)));
+  --d-blue: var(--diagram-blue, color-mix(in srgb, var(--d-accent) 28%, #6c91bc));
+  --d-purple: var(--diagram-purple, color-mix(in srgb, var(--d-accent) 15%, #a18ab9));
+  --d-orange: var(--diagram-orange, color-mix(in srgb, var(--d-accent) 10%, #d3a462));
+  font-family: var(--diagram-font, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif);
+}
+.theme-diagram text { font-family: inherit; }
+</style>
+<defs><marker id="diagram-b43822059e-0-ntc-shared-features-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 Z" fill="context-stroke"/></marker></defs>
+<rect x="0" y="0" width="1080" height="415" rx="0" fill="var(--d-bg)" stroke="var(--d-bg)" stroke-width="1.3" opacity="1"/><rect x="55" y="40" width="80" height="80" rx="3" fill="var(--d-surface)" stroke="var(--d-orange)" stroke-width="1.3" opacity="1"/><rect x="57" y="42" width="16" height="16" rx="2" fill="var(--d-orange)" stroke="var(--d-orange)" stroke-width="1.3" opacity="0.25"/><rect x="57" y="62" width="16" height="16" rx="2" fill="var(--d-orange)" stroke="var(--d-orange)" stroke-width="1.3" opacity="0.53"/><rect x="57" y="82" width="16" height="16" rx="2" fill="var(--d-orange)" stroke="var(--d-orange)" stroke-width="1.3" opacity="0.81"/><rect x="57" y="102" width="16" height="16" rx="2" fill="var(--d-orange)" stroke="var(--d-orange)" stroke-width="1.3" opacity="0.39"/><rect x="77" y="42" width="16" height="16" rx="2" fill="var(--d-orange)" stroke="var(--d-orange)" stroke-width="1.3" opacity="0.67"/><rect x="77" y="62" width="16" height="16" rx="2" fill="var(--d-orange)" stroke="var(--d-orange)" stroke-width="1.3" opacity="0.25"/><rect x="77" y="82" width="16" height="16" rx="2" fill="var(--d-orange)" stroke="var(--d-orange)" stroke-width="1.3" opacity="0.53"/><rect x="77" y="102" width="16" height="16" rx="2" fill="var(--d-orange)" stroke="var(--d-orange)" stroke-width="1.3" opacity="0.81"/><rect x="97" y="42" width="16" height="16" rx="2" fill="var(--d-orange)" stroke="var(--d-orange)" stroke-width="1.3" opacity="0.39"/><rect x="97" y="62" width="16" height="16" rx="2" fill="var(--d-orange)" stroke="var(--d-orange)" stroke-width="1.3" opacity="0.67"/><rect x="97" y="82" width="16" height="16" rx="2" fill="var(--d-orange)" stroke="var(--d-orange)" stroke-width="1.3" opacity="0.25"/><rect x="97" y="102" width="16" height="16" rx="2" fill="var(--d-orange)" stroke="var(--d-orange)" stroke-width="1.3" opacity="0.53"/><rect x="117" y="42" width="16" height="16" rx="2" fill="var(--d-orange)" stroke="var(--d-orange)" stroke-width="1.3" opacity="0.81"/><rect x="117" y="62" width="16" height="16" rx="2" fill="var(--d-orange)" stroke="var(--d-orange)" stroke-width="1.3" opacity="0.39"/><rect x="117" y="82" width="16" height="16" rx="2" fill="var(--d-orange)" stroke="var(--d-orange)" stroke-width="1.3" opacity="0.67"/><rect x="117" y="102" width="16" height="16" rx="2" fill="var(--d-orange)" stroke="var(--d-orange)" stroke-width="1.3" opacity="0.25"/><text x="95" y="139" font-size="18" text-anchor="middle" fill="var(--d-ink)">Base color</text><rect x="55" y="145" width="80" height="80" rx="3" fill="var(--d-surface)" stroke="var(--d-purple)" stroke-width="1.3" opacity="1"/><rect x="57" y="147" width="16" height="16" rx="2" fill="var(--d-purple)" stroke="var(--d-purple)" stroke-width="1.3" opacity="0.25"/><rect x="57" y="167" width="16" height="16" rx="2" fill="var(--d-purple)" stroke="var(--d-purple)" stroke-width="1.3" opacity="0.53"/><rect x="57" y="187" width="16" height="16" rx="2" fill="var(--d-purple)" stroke="var(--d-purple)" stroke-width="1.3" opacity="0.81"/><rect x="57" y="207" width="16" height="16" rx="2" fill="var(--d-purple)" stroke="var(--d-purple)" stroke-width="1.3" opacity="0.39"/><rect x="77" y="147" width="16" height="16" rx="2" fill="var(--d-purple)" stroke="var(--d-purple)" stroke-width="1.3" opacity="0.67"/><rect x="77" y="167" width="16" height="16" rx="2" fill="var(--d-purple)" stroke="var(--d-purple)" stroke-width="1.3" opacity="0.25"/><rect x="77" y="187" width="16" height="16" rx="2" fill="var(--d-purple)" stroke="var(--d-purple)" stroke-width="1.3" opacity="0.53"/><rect x="77" y="207" width="16" height="16" rx="2" fill="var(--d-purple)" stroke="var(--d-purple)" stroke-width="1.3" opacity="0.81"/><rect x="97" y="147" width="16" height="16" rx="2" fill="var(--d-purple)" stroke="var(--d-purple)" stroke-width="1.3" opacity="0.39"/><rect x="97" y="167" width="16" height="16" rx="2" fill="var(--d-purple)" stroke="var(--d-purple)" stroke-width="1.3" opacity="0.67"/><rect x="97" y="187" width="16" height="16" rx="2" fill="var(--d-purple)" stroke="var(--d-purple)" stroke-width="1.3" opacity="0.25"/><rect x="97" y="207" width="16" height="16" rx="2" fill="var(--d-purple)" stroke="var(--d-purple)" stroke-width="1.3" opacity="0.53"/><rect x="117" y="147" width="16" height="16" rx="2" fill="var(--d-purple)" stroke="var(--d-purple)" stroke-width="1.3" opacity="0.81"/><rect x="117" y="167" width="16" height="16" rx="2" fill="var(--d-purple)" stroke="var(--d-purple)" stroke-width="1.3" opacity="0.39"/><rect x="117" y="187" width="16" height="16" rx="2" fill="var(--d-purple)" stroke="var(--d-purple)" stroke-width="1.3" opacity="0.67"/><rect x="117" y="207" width="16" height="16" rx="2" fill="var(--d-purple)" stroke="var(--d-purple)" stroke-width="1.3" opacity="0.25"/><text x="95" y="244" font-size="18" text-anchor="middle" fill="var(--d-ink)">Normal</text><rect x="55" y="250" width="80" height="80" rx="3" fill="var(--d-surface)" stroke="var(--d-blue)" stroke-width="1.3" opacity="1"/><rect x="57" y="252" width="16" height="16" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.25"/><rect x="57" y="272" width="16" height="16" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.53"/><rect x="57" y="292" width="16" height="16" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.81"/><rect x="57" y="312" width="16" height="16" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.39"/><rect x="77" y="252" width="16" height="16" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.67"/><rect x="77" y="272" width="16" height="16" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.25"/><rect x="77" y="292" width="16" height="16" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.53"/><rect x="77" y="312" width="16" height="16" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.81"/><rect x="97" y="252" width="16" height="16" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.39"/><rect x="97" y="272" width="16" height="16" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.67"/><rect x="97" y="292" width="16" height="16" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.25"/><rect x="97" y="312" width="16" height="16" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.53"/><rect x="117" y="252" width="16" height="16" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.81"/><rect x="117" y="272" width="16" height="16" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.39"/><rect x="117" y="292" width="16" height="16" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.67"/><rect x="117" y="312" width="16" height="16" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.25"/><text x="95" y="349" font-size="18" text-anchor="middle" fill="var(--d-ink)">Roughness</text><rect x="890" y="40" width="80" height="80" rx="3" fill="var(--d-surface)" stroke="var(--d-orange)" stroke-width="1.3" opacity="1"/><rect x="892" y="42" width="16" height="16" rx="2" fill="var(--d-orange)" stroke="var(--d-orange)" stroke-width="1.3" opacity="0.25"/><rect x="892" y="62" width="16" height="16" rx="2" fill="var(--d-orange)" stroke="var(--d-orange)" stroke-width="1.3" opacity="0.53"/><rect x="892" y="82" width="16" height="16" rx="2" fill="var(--d-orange)" stroke="var(--d-orange)" stroke-width="1.3" opacity="0.81"/><rect x="892" y="102" width="16" height="16" rx="2" fill="var(--d-orange)" stroke="var(--d-orange)" stroke-width="1.3" opacity="0.39"/><rect x="912" y="42" width="16" height="16" rx="2" fill="var(--d-orange)" stroke="var(--d-orange)" stroke-width="1.3" opacity="0.67"/><rect x="912" y="62" width="16" height="16" rx="2" fill="var(--d-orange)" stroke="var(--d-orange)" stroke-width="1.3" opacity="0.25"/><rect x="912" y="82" width="16" height="16" rx="2" fill="var(--d-orange)" stroke="var(--d-orange)" stroke-width="1.3" opacity="0.53"/><rect x="912" y="102" width="16" height="16" rx="2" fill="var(--d-orange)" stroke="var(--d-orange)" stroke-width="1.3" opacity="0.81"/><rect x="932" y="42" width="16" height="16" rx="2" fill="var(--d-orange)" stroke="var(--d-orange)" stroke-width="1.3" opacity="0.39"/><rect x="932" y="62" width="16" height="16" rx="2" fill="var(--d-orange)" stroke="var(--d-orange)" stroke-width="1.3" opacity="0.67"/><rect x="932" y="82" width="16" height="16" rx="2" fill="var(--d-orange)" stroke="var(--d-orange)" stroke-width="1.3" opacity="0.25"/><rect x="932" y="102" width="16" height="16" rx="2" fill="var(--d-orange)" stroke="var(--d-orange)" stroke-width="1.3" opacity="0.53"/><rect x="952" y="42" width="16" height="16" rx="2" fill="var(--d-orange)" stroke="var(--d-orange)" stroke-width="1.3" opacity="0.81"/><rect x="952" y="62" width="16" height="16" rx="2" fill="var(--d-orange)" stroke="var(--d-orange)" stroke-width="1.3" opacity="0.39"/><rect x="952" y="82" width="16" height="16" rx="2" fill="var(--d-orange)" stroke="var(--d-orange)" stroke-width="1.3" opacity="0.67"/><rect x="952" y="102" width="16" height="16" rx="2" fill="var(--d-orange)" stroke="var(--d-orange)" stroke-width="1.3" opacity="0.25"/><text x="930" y="139" font-size="18" text-anchor="middle" fill="var(--d-ink)">Base color</text><rect x="890" y="145" width="80" height="80" rx="3" fill="var(--d-surface)" stroke="var(--d-purple)" stroke-width="1.3" opacity="1"/><rect x="892" y="147" width="16" height="16" rx="2" fill="var(--d-purple)" stroke="var(--d-purple)" stroke-width="1.3" opacity="0.25"/><rect x="892" y="167" width="16" height="16" rx="2" fill="var(--d-purple)" stroke="var(--d-purple)" stroke-width="1.3" opacity="0.53"/><rect x="892" y="187" width="16" height="16" rx="2" fill="var(--d-purple)" stroke="var(--d-purple)" stroke-width="1.3" opacity="0.81"/><rect x="892" y="207" width="16" height="16" rx="2" fill="var(--d-purple)" stroke="var(--d-purple)" stroke-width="1.3" opacity="0.39"/><rect x="912" y="147" width="16" height="16" rx="2" fill="var(--d-purple)" stroke="var(--d-purple)" stroke-width="1.3" opacity="0.67"/><rect x="912" y="167" width="16" height="16" rx="2" fill="var(--d-purple)" stroke="var(--d-purple)" stroke-width="1.3" opacity="0.25"/><rect x="912" y="187" width="16" height="16" rx="2" fill="var(--d-purple)" stroke="var(--d-purple)" stroke-width="1.3" opacity="0.53"/><rect x="912" y="207" width="16" height="16" rx="2" fill="var(--d-purple)" stroke="var(--d-purple)" stroke-width="1.3" opacity="0.81"/><rect x="932" y="147" width="16" height="16" rx="2" fill="var(--d-purple)" stroke="var(--d-purple)" stroke-width="1.3" opacity="0.39"/><rect x="932" y="167" width="16" height="16" rx="2" fill="var(--d-purple)" stroke="var(--d-purple)" stroke-width="1.3" opacity="0.67"/><rect x="932" y="187" width="16" height="16" rx="2" fill="var(--d-purple)" stroke="var(--d-purple)" stroke-width="1.3" opacity="0.25"/><rect x="932" y="207" width="16" height="16" rx="2" fill="var(--d-purple)" stroke="var(--d-purple)" stroke-width="1.3" opacity="0.53"/><rect x="952" y="147" width="16" height="16" rx="2" fill="var(--d-purple)" stroke="var(--d-purple)" stroke-width="1.3" opacity="0.81"/><rect x="952" y="167" width="16" height="16" rx="2" fill="var(--d-purple)" stroke="var(--d-purple)" stroke-width="1.3" opacity="0.39"/><rect x="952" y="187" width="16" height="16" rx="2" fill="var(--d-purple)" stroke="var(--d-purple)" stroke-width="1.3" opacity="0.67"/><rect x="952" y="207" width="16" height="16" rx="2" fill="var(--d-purple)" stroke="var(--d-purple)" stroke-width="1.3" opacity="0.25"/><text x="930" y="244" font-size="18" text-anchor="middle" fill="var(--d-ink)">Normal</text><rect x="890" y="250" width="80" height="80" rx="3" fill="var(--d-surface)" stroke="var(--d-blue)" stroke-width="1.3" opacity="1"/><rect x="892" y="252" width="16" height="16" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.25"/><rect x="892" y="272" width="16" height="16" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.53"/><rect x="892" y="292" width="16" height="16" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.81"/><rect x="892" y="312" width="16" height="16" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.39"/><rect x="912" y="252" width="16" height="16" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.67"/><rect x="912" y="272" width="16" height="16" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.25"/><rect x="912" y="292" width="16" height="16" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.53"/><rect x="912" y="312" width="16" height="16" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.81"/><rect x="932" y="252" width="16" height="16" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.39"/><rect x="932" y="272" width="16" height="16" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.67"/><rect x="932" y="292" width="16" height="16" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.25"/><rect x="932" y="312" width="16" height="16" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.53"/><rect x="952" y="252" width="16" height="16" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.81"/><rect x="952" y="272" width="16" height="16" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.39"/><rect x="952" y="292" width="16" height="16" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.67"/><rect x="952" y="312" width="16" height="16" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.25"/><text x="930" y="349" font-size="18" text-anchor="middle" fill="var(--d-ink)">Roughness</text><path d="M145 80 L195 80" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M195 80 L195 185" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M145 185 L195 185" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M195 185 L195 185" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M145 290 L195 290" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M195 290 L195 185" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M195 185 L285 185" fill="none" stroke="var(--d-muted)" stroke-width="2" marker-end="url(#diagram-b43822059e-0-ntc-shared-features-arrow)"/><rect x="300" y="60" width="220" height="250" rx="6" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="1.3" opacity="1"/><rect x="325" y="85" width="144" height="144" rx="3" fill="var(--d-surface)" stroke="var(--d-teal)" stroke-width="1.3" opacity="1"/><rect x="327" y="87" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.25"/><rect x="327" y="111" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.53"/><rect x="327" y="135" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.81"/><rect x="327" y="159" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.39"/><rect x="327" y="183" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.67"/><rect x="327" y="207" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.25"/><rect x="351" y="87" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.67"/><rect x="351" y="111" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.25"/><rect x="351" y="135" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.53"/><rect x="351" y="159" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.81"/><rect x="351" y="183" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.39"/><rect x="351" y="207" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.67"/><rect x="375" y="87" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.39"/><rect x="375" y="111" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.67"/><rect x="375" y="135" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.25"/><rect x="375" y="159" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.53"/><rect x="375" y="183" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.81"/><rect x="375" y="207" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.39"/><rect x="399" y="87" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.81"/><rect x="399" y="111" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.39"/><rect x="399" y="135" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.67"/><rect x="399" y="159" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.25"/><rect x="399" y="183" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.53"/><rect x="399" y="207" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.81"/><rect x="423" y="87" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.53"/><rect x="423" y="111" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.81"/><rect x="423" y="135" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.39"/><rect x="423" y="159" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.67"/><rect x="423" y="183" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.25"/><rect x="423" y="207" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.53"/><rect x="447" y="87" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.25"/><rect x="447" y="111" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.53"/><rect x="447" y="135" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.81"/><rect x="447" y="159" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.39"/><rect x="447" y="183" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.67"/><rect x="447" y="207" width="20" height="20" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.25"/><rect x="405" y="210" width="72" height="72" rx="3" fill="var(--d-surface)" stroke="var(--d-blue)" stroke-width="1.3" opacity="1"/><rect x="407" y="212" width="20" height="20" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.25"/><rect x="407" y="236" width="20" height="20" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.53"/><rect x="407" y="260" width="20" height="20" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.81"/><rect x="431" y="212" width="20" height="20" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.67"/><rect x="431" y="236" width="20" height="20" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.25"/><rect x="431" y="260" width="20" height="20" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.53"/><rect x="455" y="212" width="20" height="20" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.39"/><rect x="455" y="236" width="20" height="20" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.67"/><rect x="455" y="260" width="20" height="20" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.25"/><text x="410" y="340" font-size="20" text-anchor="middle" fill="var(--d-ink)">特征网格</text><path d="M535 185 L615 185" fill="none" stroke="var(--d-muted)" stroke-width="2" marker-end="url(#diagram-b43822059e-0-ntc-shared-features-arrow)"/><path d="M640 140 L690 125" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M640 140 L690 155" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M640 140 L690 185" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M640 140 L690 215" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M640 140 L690 245" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M640 170 L690 125" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M640 170 L690 155" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M640 170 L690 185" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M640 170 L690 215" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M640 170 L690 245" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M640 200 L690 125" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M640 200 L690 155" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M640 200 L690 185" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M640 200 L690 215" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M640 200 L690 245" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M640 230 L690 125" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M640 230 L690 155" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M640 230 L690 185" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M640 230 L690 215" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M640 230 L690 245" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M690 125 L740 140" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M690 125 L740 170" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M690 125 L740 200" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M690 125 L740 230" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M690 155 L740 140" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M690 155 L740 170" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M690 155 L740 200" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M690 155 L740 230" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M690 185 L740 140" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M690 185 L740 170" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M690 185 L740 200" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M690 185 L740 230" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M690 215 L740 140" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M690 215 L740 170" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M690 215 L740 200" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M690 215 L740 230" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M690 245 L740 140" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M690 245 L740 170" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M690 245 L740 200" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M690 245 L740 230" fill="none" stroke="var(--d-border)" stroke-width="2"/><circle cx="640" cy="140" r="6" fill="var(--d-accent)"/><circle cx="640" cy="170" r="6" fill="var(--d-accent)"/><circle cx="640" cy="200" r="6" fill="var(--d-accent)"/><circle cx="640" cy="230" r="6" fill="var(--d-accent)"/><circle cx="690" cy="125" r="6" fill="var(--d-accent)"/><circle cx="690" cy="155" r="6" fill="var(--d-accent)"/><circle cx="690" cy="185" r="6" fill="var(--d-accent)"/><circle cx="690" cy="215" r="6" fill="var(--d-accent)"/><circle cx="690" cy="245" r="6" fill="var(--d-accent)"/><circle cx="740" cy="140" r="6" fill="var(--d-accent)"/><circle cx="740" cy="170" r="6" fill="var(--d-accent)"/><circle cx="740" cy="200" r="6" fill="var(--d-accent)"/><circle cx="740" cy="230" r="6" fill="var(--d-accent)"/><text x="690" y="290" font-size="20" text-anchor="middle" fill="var(--d-ink)">MLP</text><path d="M755 185 L825 185" fill="none" stroke="var(--d-muted)" stroke-width="2" marker-end="url(#diagram-b43822059e-0-ntc-shared-features-arrow)"/><path d="M835 185 L835 80" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M835 80 L880 80" fill="none" stroke="var(--d-border)" stroke-width="2" marker-end="url(#diagram-b43822059e-0-ntc-shared-features-arrow)"/><path d="M835 185 L835 185" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M835 185 L880 185" fill="none" stroke="var(--d-border)" stroke-width="2" marker-end="url(#diagram-b43822059e-0-ntc-shared-features-arrow)"/><path d="M835 185 L835 290" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M835 290 L880 290" fill="none" stroke="var(--d-border)" stroke-width="2" marker-end="url(#diagram-b43822059e-0-ntc-shared-features-arrow)"/><text x="95" y="385" font-size="20" text-anchor="middle" fill="var(--d-ink)">材质纹理</text><text x="930" y="385" font-size="20" text-anchor="middle" fill="var(--d-ink)">材质通道</text>
+</svg></a></figure>
+
+<p>左侧的材质贴图共同参与离线训练。原论文的每个特征层都有一密一疏两张网格。采样时按目标 mip 选中一层，右侧的解码器从这对网格读取局部特征，一次重建多个材质通道。</p>
+<img loading="lazy" decoding="async" src="/2026/05/21/NeuralTextureCompression/Fig1.png" class="" title="Ubisoft 的多贴图联合压缩" alt="多张材质贴图经过离线训练，得到共用的 latent 表示和解码器">
+
+<p>Ubisoft 把训练得到的特征存进 BC 纹理，运行时把采到的特征送入右侧的网络，重建材质通道。图片经原技术分享引自 Ubisoft La Forge。<a target="_blank" rel="noopener" href="https://www.ubisoft.com/en-us/studio/laforge/news/415slmB3ZGzv8d2LhO9QT/shipping-neural-texture-compression-in-assassins-creed-mirage">《刺客信条 幻景》神经纹理压缩实践</a></p>
+<h2 id="解码后的纹理质量"><a href="#解码后的纹理质量" class="headerlink" title="解码后的纹理质量"></a>解码后的纹理质量</h2><p>下面截取原论文图 1 的颜色与法线贴图局部。每组从左到右依次是 BC high、NTC 和未压缩参考图。</p>
+<img loading="lazy" decoding="async" src="/2026/05/21/NeuralTextureCompression/ntc-albedo-comparison.jpg" class="" title="颜色贴图局部" alt="从左至右为 BC high、NTC 与参考图，可对照锈迹斑点和金属轮廓">
+
+<p>颜色贴图中，BC high 丢失了不少锈迹与金属边缘的细节。NTC 保留了更细的斑点和轮廓，但中间圆面上的纹理仍比参考图平滑。</p>
+<img loading="lazy" decoding="async" src="/2026/05/21/NeuralTextureCompression/ntc-normal-comparison.jpg" class="" title="法线贴图局部" alt="从左至右为 BC high、NTC 与参考图，可对照圆形凹凸及中央表面的起伏">
+
+<p>法线贴图中，NTC 保留了周围的圆形凹凸，中央表面的细小起伏仍有损失。法线与粗糙度的重建误差也会改变材质的高光。</p>
+<p>BC high 使用 1024 × 1024 纹理，整套材质占 5.3 MB。NTC 与未压缩参考图均为 4096 × 4096，整套材质分别占 3.8 MB 和 256 MB。NTC 比图中的 BC high 多保留了两级高分辨率 mip，近看时，锈迹和凹凸都有更多 texel 可以描述。</p>
+<p>以上两图截自 Karthik Vaidyanathan 等人的 <em>Random-Access Neural Compression of Material Textures</em>（2023）图 1。<a target="_blank" rel="noopener" href="https://research.nvidia.com/labs/rtr/neural_texture_compression/">论文与完整结果</a></p>
+<h3 id="质量与码率"><a href="#质量与码率" class="headerlink" title="质量与码率"></a>质量与码率</h3><img loading="lazy" decoding="async" src="/2026/05/21/NeuralTextureCompression/ntc-paper-rate-distortion.png" class="" title="论文图 9 的质量与码率" alt="横轴为每像素每通道位数，纵轴为 PSNR，右侧椭圆比较材质之间的变化">
+
+<p>横轴 BPPC 是每像素每通道的平均位数，纵轴 PSNR 越高表示重建误差越小。统计覆盖 20 套材质的全部通道与 mip。左图的点给出各配置的平均值，右侧椭圆显示材质之间的变化幅度。图取自 Vaidyanathan 等人的论文图 9，下表摘自表 3。<a target="_blank" rel="noopener" href="https://research.nvidia.com/labs/rtr/neural_texture_compression/assets/ntc_small_size.pdf#page=9">表 3</a></p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>格式与配置</th>
+<th>BPPC</th>
+<th>PSNR</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>NTC 0.5</td>
+<td>0.56</td>
+<td>36.12 dB</td>
+</tr>
+<tr>
+<td>NTC 1.0</td>
+<td>1.13</td>
+<td>39.92 dB</td>
+</tr>
+<tr>
+<td>NTC 2.25</td>
+<td>2.51</td>
+<td>45.30 dB</td>
+</tr>
+<tr>
+<td>JPEG XL</td>
+<td>2.33</td>
+<td>44.86 dB</td>
+</tr>
+<tr>
+<td>BC medium</td>
+<td>3.12</td>
+<td>37.38 dB</td>
+</tr>
+<tr>
+<td>BC high</td>
+<td>3.94</td>
+<td>40.23 dB</td>
+</tr>
+</tbody></table></div>
+<p>NTC 0.5 以约五分之一的存储量达到接近 BC medium 的质量。论文也比较了 JPEG XL 和 AVIF 的率失真表现。在约 2.3–2.5 BPPC 时，NTC 与 JPEG XL 的平均 PSNR 都接近 45 dB，NTC 的压缩表示还支持 shader 按 texel 解码。</p>
+<img loading="lazy" decoding="async" src="/2026/05/21/NeuralTextureCompression/ntc-9.png" class="" title="论文图 10 的 Paving Stones 材质" alt="上排比较漫反射，下排比较法线，分别展示相近存储预算和相近画质下的结果">
+
+<p>下排的法线图中，BC medium 抹平了几条石缝，NTC 0.2 保留了石缝两侧的起伏。两者的法线 PSNR 分别为 21.86 dB 和 26.92 dB，整套材质分别占 3.36 MB 和 3.5 MB。图片经原分享引自 Vaidyanathan 等人的论文图 10，材质来自 ambientCG。</p>
+<h2 id="特征网格如何重建纹理"><a href="#特征网格如何重建纹理" class="headerlink" title="特征网格如何重建纹理"></a>特征网格如何重建纹理</h2><img loading="lazy" decoding="async" src="/2026/05/21/NeuralTextureCompression/ntc-paper-dual-grid.png" class="" title="论文图 4 的解码流程" alt="橙色高分辨率网格和灰色低分辨率网格共同向解码器提供局部特征">
+
+<p>NTC 用一细一粗两张网格覆盖同一片 UV 区域，这对网格合称一个特征层（feature level）。细网格记作 G₀，粗网格记作 G₁。以论文里 1024 × 1024 纹理的顶层 mip 为例，G₀ 有 256 × 256 个格点，G₁ 有 128 × 128 个。每个格点存一个特征向量，向量里的数值和解码器权重一起训练。<a target="_blank" rel="noopener" href="https://arxiv.org/html/2305.17105#S4.SS1">NTC 论文第 4.1 节与表 1</a></p>
+<p>采样时，shader 用同一个 UV 从两张网格取特征。拿上图的法线贴图来说，石面上平缓的起伏可以用 G₁ 表示，对四个邻点的特征做双线性插值就能得到平滑的变化。跨过一条石缝，法线方向可能在几个 texel 内就发生变化。解码器从 G₀ 取出四个邻点各自的特征，结合采样位置还原缝边的高频细节。按 NTC 0.5 档的 4 bit 精度算，一个低频特征分量放在 G₁ 上只占 8 KiB，按 G₀ 的密度存就要 32 KiB。<a target="_blank" rel="noopener" href="https://research.nvidia.com/labs/rtr/neural_texture_compression/assets/ntc_small_size.pdf#page=8">各档位的特征精度</a></p>
+<p>图中红点是要解码的 texel，周围的灰色和橙色格点分别来自 G₁ 和 G₀。沿箭头看，两路特征在进入网络前汇合，右侧输出红点处的材质通道。图取自 Vaidyanathan 等人的论文图 4。</p>
+<h3 id="同一个-texel-怎样从两张网格取样"><a href="#同一个-texel-怎样从两张网格取样" class="headerlink" title="同一个 texel 怎样从两张网格取样"></a>同一个 texel 怎样从两张网格取样</h3><p>把同一个 UV 分别标到 G₀ 和 G₁ 上，它在每张网格里各落入一个方格。方格的四个角就是这次查询的 2 × 2 邻域。<strong>两张网格各读四个特征向量，区别在于何时把四个角的信息合起来。</strong></p>
+<p><strong>G₁ 先做双线性插值。</strong> 它主要提供平缓变化的低频信息，按 UV 在格内的位置给四个向量加权求和，就能得到随位置平滑变化的输入。G₁ 每个格点若有 C₁ 个分量，插值后只占 C₁ 个输入槽位，把四个向量全部拼接则要占 4C₁ 个。作者还观察到，G₁ 的平滑输入能减轻低位宽量化带来的色带。</p>
+<p><strong>G₀ 把四个角分别交给解码器。</strong> 看一个特征分量，左边两角为 0、右边两角为 1，在格子中心插值得到 0.5。换成上面两角为 0、下面两角为 1，中心值同样是 0.5，变化的方向却转了 90 度。按固定顺序拼接四个向量，就保留了这种方向差异。可是一条石缝从格子中间穿过时，缝两侧的 texel 读到的仍是同样的四个角。解码器怎么知道这次要重建的是哪一侧？<a target="_blank" rel="noopener" href="https://arxiv.org/html/2305.17105#S4.SS3.SSS1">NTC 论文第 4.3.1 节</a></p>
+<figure class="theme-svg-figure theme-svg-figure--asset"><a class="theme-svg-link" href="&#x2F;2026&#x2F;05&#x2F;21&#x2F;NeuralTextureCompression&#x2F;ntc-grid-sampling.svg" target="_blank" rel="noopener" aria-label="高分辨率网格的四向量拼接与低分辨率网格的双线性插值"><svg style="--diagram-background:var(--color-background, #222426);--diagram-text:var(--color-text, #e6e4e0);--diagram-accent:var(--color-accent-1, #f3b958);--diagram-teal:var(--color-diagram-teal, #4bc292);--diagram-blue:var(--color-diagram-blue, #009dff);--diagram-purple:var(--color-diagram-purple, #8867a5);--diagram-orange:var(--color-diagram-orange, #f3b958)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 505" class="theme-diagram" data-theme-svg="1" role="img" aria-labelledby="diagram-fb9ae4a8db-1-ntc-grid-sampling-title diagram-fb9ae4a8db-1-ntc-grid-sampling-desc">
+<title id="diagram-fb9ae4a8db-1-ntc-grid-sampling-title">高低分辨率特征网格的采样</title>
+<desc id="diagram-fb9ae4a8db-1-ntc-grid-sampling-desc">高分辨率网格的四个邻近格点各提供一个特征向量，低分辨率网格的四邻特征经双线性插值形成一个向量。这五个向量一起输入解码网络。</desc>
+<style>
+.theme-diagram {
+  --d-bg: var(--diagram-background, #ffffff);
+  --d-ink: var(--diagram-text, #383838);
+  --d-accent: var(--diagram-accent, #2bbc8a);
+  --d-muted: color-mix(in srgb, var(--d-ink) 68%, var(--d-bg));
+  --d-border: color-mix(in srgb, var(--d-ink) 19%, var(--d-bg));
+  --d-surface: color-mix(in srgb, var(--d-ink) 3%, var(--d-bg));
+  --d-shadow: color-mix(in srgb, #000000 35%, var(--d-bg));
+  --d-teal: var(--diagram-teal, color-mix(in srgb, var(--d-accent) 76%, var(--d-ink)));
+  --d-blue: var(--diagram-blue, color-mix(in srgb, var(--d-accent) 28%, #6c91bc));
+  --d-purple: var(--diagram-purple, color-mix(in srgb, var(--d-accent) 15%, #a18ab9));
+  --d-orange: var(--diagram-orange, color-mix(in srgb, var(--d-accent) 10%, #d3a462));
+  font-family: var(--diagram-font, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif);
+}
+.theme-diagram text { font-family: inherit; }
+</style>
+<defs><marker id="diagram-fb9ae4a8db-1-ntc-grid-sampling-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 Z" fill="context-stroke"/></marker></defs>
+<rect x="0" y="0" width="1080" height="505" rx="0" fill="var(--d-bg)" stroke="var(--d-bg)" stroke-width="1.3" opacity="1"/><rect x="60" y="50" width="135" height="135" rx="3" fill="var(--d-surface)" stroke="var(--d-teal)" stroke-width="1.3" opacity="1"/><rect x="62" y="52" width="41" height="41" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.25"/><rect x="62" y="97" width="41" height="41" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.53"/><rect x="62" y="142" width="41" height="41" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.81"/><rect x="107" y="52" width="41" height="41" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.67"/><rect x="107" y="97" width="41" height="41" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.25"/><rect x="107" y="142" width="41" height="41" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.53"/><rect x="152" y="52" width="41" height="41" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.39"/><rect x="152" y="97" width="41" height="41" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.67"/><rect x="152" y="142" width="41" height="41" rx="2" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.25"/><text x="127" y="218" font-size="20" text-anchor="middle" fill="var(--d-ink)">高分辨率网格</text><circle cx="105" cy="95" r="6" fill="var(--d-teal)"/><path d="M105 95 L123 116" fill="none" stroke="var(--d-teal)" stroke-width="2" stroke-dasharray="5 5"/><circle cx="150" cy="95" r="6" fill="var(--d-teal)"/><path d="M150 95 L123 116" fill="none" stroke="var(--d-teal)" stroke-width="2" stroke-dasharray="5 5"/><circle cx="105" cy="140" r="6" fill="var(--d-teal)"/><path d="M105 140 L123 116" fill="none" stroke="var(--d-teal)" stroke-width="2" stroke-dasharray="5 5"/><circle cx="150" cy="140" r="6" fill="var(--d-teal)"/><path d="M150 140 L123 116" fill="none" stroke="var(--d-teal)" stroke-width="2" stroke-dasharray="5 5"/><circle cx="123" cy="116" r="5" fill="var(--d-ink)"/><text x="175" y="119" font-size="17" text-anchor="middle" fill="var(--d-ink)">UV</text><path d="M210 116 L285 62" fill="none" stroke="var(--d-teal)" stroke-width="2"/><rect x="300" y="50" width="90" height="24" rx="3" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.45"/><path d="M322.5 53 L322.5 71" fill="none" stroke="var(--d-bg)" stroke-width="2"/><path d="M345.0 53 L345.0 71" fill="none" stroke="var(--d-bg)" stroke-width="2"/><path d="M367.5 53 L367.5 71" fill="none" stroke="var(--d-bg)" stroke-width="2"/><path d="M210 116 L285 93" fill="none" stroke="var(--d-teal)" stroke-width="2"/><rect x="300" y="81" width="90" height="24" rx="3" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.61"/><path d="M322.5 84 L322.5 102" fill="none" stroke="var(--d-bg)" stroke-width="2"/><path d="M345.0 84 L345.0 102" fill="none" stroke="var(--d-bg)" stroke-width="2"/><path d="M367.5 84 L367.5 102" fill="none" stroke="var(--d-bg)" stroke-width="2"/><path d="M210 116 L285 124" fill="none" stroke="var(--d-teal)" stroke-width="2"/><rect x="300" y="112" width="90" height="24" rx="3" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.77"/><path d="M322.5 115 L322.5 133" fill="none" stroke="var(--d-bg)" stroke-width="2"/><path d="M345.0 115 L345.0 133" fill="none" stroke="var(--d-bg)" stroke-width="2"/><path d="M367.5 115 L367.5 133" fill="none" stroke="var(--d-bg)" stroke-width="2"/><path d="M210 116 L285 155" fill="none" stroke="var(--d-teal)" stroke-width="2"/><rect x="300" y="143" width="90" height="24" rx="3" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.9299999999999999"/><path d="M322.5 146 L322.5 164" fill="none" stroke="var(--d-bg)" stroke-width="2"/><path d="M345.0 146 L345.0 164" fill="none" stroke="var(--d-bg)" stroke-width="2"/><path d="M367.5 146 L367.5 164" fill="none" stroke="var(--d-bg)" stroke-width="2"/><rect x="60" y="300" width="135" height="135" rx="3" fill="var(--d-surface)" stroke="var(--d-blue)" stroke-width="1.3" opacity="1"/><rect x="62" y="302" width="41" height="41" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.25"/><rect x="62" y="347" width="41" height="41" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.53"/><rect x="62" y="392" width="41" height="41" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.81"/><rect x="107" y="302" width="41" height="41" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.67"/><rect x="107" y="347" width="41" height="41" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.25"/><rect x="107" y="392" width="41" height="41" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.53"/><rect x="152" y="302" width="41" height="41" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.39"/><rect x="152" y="347" width="41" height="41" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.67"/><rect x="152" y="392" width="41" height="41" rx="2" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.25"/><text x="127" y="468" font-size="20" text-anchor="middle" fill="var(--d-ink)">低分辨率网格</text><circle cx="105" cy="345" r="6" fill="var(--d-blue)"/><path d="M105 345 L123 366" fill="none" stroke="var(--d-blue)" stroke-width="2" stroke-dasharray="5 5"/><circle cx="150" cy="345" r="6" fill="var(--d-blue)"/><path d="M150 345 L123 366" fill="none" stroke="var(--d-blue)" stroke-width="2" stroke-dasharray="5 5"/><circle cx="105" cy="390" r="6" fill="var(--d-blue)"/><path d="M105 390 L123 366" fill="none" stroke="var(--d-blue)" stroke-width="2" stroke-dasharray="5 5"/><circle cx="150" cy="390" r="6" fill="var(--d-blue)"/><path d="M150 390 L123 366" fill="none" stroke="var(--d-blue)" stroke-width="2" stroke-dasharray="5 5"/><circle cx="123" cy="366" r="5" fill="var(--d-ink)"/><text x="175" y="369" font-size="17" text-anchor="middle" fill="var(--d-ink)">UV</text><path d="M210 366 L285 312" fill="none" stroke="var(--d-blue)" stroke-width="2"/><rect x="300" y="300" width="90" height="24" rx="3" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.45"/><path d="M322.5 303 L322.5 321" fill="none" stroke="var(--d-bg)" stroke-width="2"/><path d="M345.0 303 L345.0 321" fill="none" stroke="var(--d-bg)" stroke-width="2"/><path d="M367.5 303 L367.5 321" fill="none" stroke="var(--d-bg)" stroke-width="2"/><path d="M210 366 L285 343" fill="none" stroke="var(--d-blue)" stroke-width="2"/><rect x="300" y="331" width="90" height="24" rx="3" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.61"/><path d="M322.5 334 L322.5 352" fill="none" stroke="var(--d-bg)" stroke-width="2"/><path d="M345.0 334 L345.0 352" fill="none" stroke="var(--d-bg)" stroke-width="2"/><path d="M367.5 334 L367.5 352" fill="none" stroke="var(--d-bg)" stroke-width="2"/><path d="M210 366 L285 374" fill="none" stroke="var(--d-blue)" stroke-width="2"/><rect x="300" y="362" width="90" height="24" rx="3" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.77"/><path d="M322.5 365 L322.5 383" fill="none" stroke="var(--d-bg)" stroke-width="2"/><path d="M345.0 365 L345.0 383" fill="none" stroke="var(--d-bg)" stroke-width="2"/><path d="M367.5 365 L367.5 383" fill="none" stroke="var(--d-bg)" stroke-width="2"/><path d="M210 366 L285 405" fill="none" stroke="var(--d-blue)" stroke-width="2"/><rect x="300" y="393" width="90" height="24" rx="3" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="0.9299999999999999"/><path d="M322.5 396 L322.5 414" fill="none" stroke="var(--d-bg)" stroke-width="2"/><path d="M345.0 396 L345.0 414" fill="none" stroke="var(--d-bg)" stroke-width="2"/><path d="M367.5 396 L367.5 414" fill="none" stroke="var(--d-bg)" stroke-width="2"/><path d="M405 62 L520 62" fill="none" stroke="var(--d-teal)" stroke-width="2" marker-end="url(#diagram-fb9ae4a8db-1-ntc-grid-sampling-arrow)"/><rect x="535" y="50" width="100" height="24" rx="3" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.45"/><path d="M405 93 L520 93" fill="none" stroke="var(--d-teal)" stroke-width="2" marker-end="url(#diagram-fb9ae4a8db-1-ntc-grid-sampling-arrow)"/><rect x="535" y="81" width="100" height="24" rx="3" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.61"/><path d="M405 124 L520 124" fill="none" stroke="var(--d-teal)" stroke-width="2" marker-end="url(#diagram-fb9ae4a8db-1-ntc-grid-sampling-arrow)"/><rect x="535" y="112" width="100" height="24" rx="3" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.77"/><path d="M405 155 L520 155" fill="none" stroke="var(--d-teal)" stroke-width="2" marker-end="url(#diagram-fb9ae4a8db-1-ntc-grid-sampling-arrow)"/><rect x="535" y="143" width="100" height="24" rx="3" fill="var(--d-teal)" stroke="var(--d-teal)" stroke-width="1.3" opacity="0.9299999999999999"/><text x="585" y="204" font-size="20" text-anchor="middle" fill="var(--d-ink)">特征拼接</text><path d="M405 312 L465 360" fill="none" stroke="var(--d-blue)" stroke-width="2"/><path d="M405 343 L465 360" fill="none" stroke="var(--d-blue)" stroke-width="2"/><path d="M405 374 L465 360" fill="none" stroke="var(--d-blue)" stroke-width="2"/><path d="M405 405 L465 360" fill="none" stroke="var(--d-blue)" stroke-width="2"/><circle cx="465" cy="360" r="16" fill="var(--d-bg)"/><text x="465" y="368" font-size="24" text-anchor="middle" fill="var(--d-blue)">Σ</text><path d="M485 360 L520 360" fill="none" stroke="var(--d-blue)" stroke-width="2" marker-end="url(#diagram-fb9ae4a8db-1-ntc-grid-sampling-arrow)"/><rect x="535" y="345" width="100" height="30" rx="3" fill="var(--d-blue)" stroke="var(--d-blue)" stroke-width="1.3" opacity="1"/><text x="585" y="415" font-size="20" text-anchor="middle" fill="var(--d-ink)">双线性插值</text><path d="M650 108 L715 108" fill="none" stroke="var(--d-teal)" stroke-width="2"/><path d="M715 108 L715 250" fill="none" stroke="var(--d-teal)" stroke-width="2"/><path d="M650 360 L715 360" fill="none" stroke="var(--d-blue)" stroke-width="2"/><path d="M715 360 L715 250" fill="none" stroke="var(--d-blue)" stroke-width="2"/><path d="M715 250 L790 250" fill="none" stroke="var(--d-muted)" stroke-width="2" marker-end="url(#diagram-fb9ae4a8db-1-ntc-grid-sampling-arrow)"/><path d="M815 205 L865 190" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M815 205 L865 220" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M815 205 L865 250" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M815 205 L865 280" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M815 205 L865 310" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M815 235 L865 190" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M815 235 L865 220" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M815 235 L865 250" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M815 235 L865 280" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M815 235 L865 310" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M815 265 L865 190" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M815 265 L865 220" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M815 265 L865 250" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M815 265 L865 280" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M815 265 L865 310" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M815 295 L865 190" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M815 295 L865 220" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M815 295 L865 250" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M815 295 L865 280" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M815 295 L865 310" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M865 190 L915 205" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M865 190 L915 235" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M865 190 L915 265" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M865 190 L915 295" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M865 220 L915 205" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M865 220 L915 235" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M865 220 L915 265" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M865 220 L915 295" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M865 250 L915 205" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M865 250 L915 235" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M865 250 L915 265" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M865 250 L915 295" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M865 280 L915 205" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M865 280 L915 235" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M865 280 L915 265" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M865 280 L915 295" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M865 310 L915 205" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M865 310 L915 235" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M865 310 L915 265" fill="none" stroke="var(--d-border)" stroke-width="2"/><path d="M865 310 L915 295" fill="none" stroke="var(--d-border)" stroke-width="2"/><circle cx="815" cy="205" r="6" fill="var(--d-accent)"/><circle cx="815" cy="235" r="6" fill="var(--d-accent)"/><circle cx="815" cy="265" r="6" fill="var(--d-accent)"/><circle cx="815" cy="295" r="6" fill="var(--d-accent)"/><circle cx="865" cy="190" r="6" fill="var(--d-accent)"/><circle cx="865" cy="220" r="6" fill="var(--d-accent)"/><circle cx="865" cy="250" r="6" fill="var(--d-accent)"/><circle cx="865" cy="280" r="6" fill="var(--d-accent)"/><circle cx="865" cy="310" r="6" fill="var(--d-accent)"/><circle cx="915" cy="205" r="6" fill="var(--d-accent)"/><circle cx="915" cy="235" r="6" fill="var(--d-accent)"/><circle cx="915" cy="265" r="6" fill="var(--d-accent)"/><circle cx="915" cy="295" r="6" fill="var(--d-accent)"/><text x="865" y="365" font-size="20" text-anchor="middle" fill="var(--d-ink)">MLP</text>
+</svg></a></figure>
+
+<h3 id="格点之间的位置编码"><a href="#格点之间的位置编码" class="headerlink" title="格点之间的位置编码"></a>格点之间的位置编码</h3><p>特征网格比原纹理稀疏，落在同一个 G₀ 格子里的 texel 读到的都是同样的四个角。NTC 额外给解码器一组位置编码，告诉它当前 texel 在 UV 空间里的局部位置。</p>
+<p>NeRF 论文做过对照实验，用多个频率的 sin 和 cos 编码空间坐标，比直接输入坐标更容易还原细节，下图履带上的一排凸块就清楚了许多。<a target="_blank" rel="noopener" href="https://arxiv.org/pdf/2003.08934#page=7">NeRF 论文第 5.1 节</a></p>
+<img loading="lazy" decoding="async" src="/2026/05/21/NeuralTextureCompression/nerf-positional-encoding.png" class="" title="NeRF 的位置编码对照" alt="第二列的完整模型能分辨推土机履带上的凸块，最右列移除位置编码后履带细节变模糊">
+
+<p>图取自 Mildenhall 等人的 NeRF 论文图 4。</p>
+<p>NTC 用三种频率的三角波编码目标 mip 上的 texel 坐标。横、纵坐标各算出 6 个数，合起来就是送给 MLP 的 12 个位置分量。这套编码每 8 × 8 个 texel 重复一次。<a target="_blank" rel="noopener" href="https://arxiv.org/html/2305.17105#S4.SS3.SSS2">NTC 论文第 4.3.2 节</a></p>
+<img loading="lazy" decoding="async" src="/2026/05/21/NeuralTextureCompression/ntc-paper-position-encoding.png" class="" title="NTC 论文图 5 的局部位置编码" alt="橙框取横向位置的一列六个分量，蓝框取纵向位置的一行六个分量。向右移动一个 texel 时，只需改取橙框右边的一列">
+
+<p>取石缝左侧的 texel A <code>(2, 5)</code>，橙框里的一列是它的横向编码，蓝框里的一行是它的纵向编码。向右走到缝另一侧的 B <code>(3, 5)</code>，只需把橙框右移一列，蓝框里的 6 个数还是原值。图取自 Vaidyanathan 等人的 NTC 论文图 5。</p>
+<h2 id="多个-mip-共享特征层"><a href="#多个-mip-共享特征层" class="headerlink" title="多个 mip 共享特征层"></a>多个 mip 共享特征层</h2><p>以论文里的 1024 × 1024 纹理为例，整套 PBR 贴图有 11 级 mip，压缩后只用四对特征网格。比如 mip 0 到 mip 3 都从第一对网格取样。解码器根据输入的 LOD 区分这四级 mip，训练时用原贴图对应一级的纹理值计算误差。<a target="_blank" rel="noopener" href="https://research.nvidia.com/labs/rtr/neural_texture_compression/assets/ntc_small_size.pdf#page=5">论文表 1 与第 4.1 节</a></p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>特征层</th>
+<th>G₀ 分辨率</th>
+<th>G₁ 分辨率</th>
+<th>重建的材质 mip</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0</td>
+<td>256 × 256</td>
+<td>128 × 128</td>
+<td>0、1、2、3</td>
+</tr>
+<tr>
+<td>1</td>
+<td>64 × 64</td>
+<td>32 × 32</td>
+<td>4、5</td>
+</tr>
+<tr>
+<td>2</td>
+<td>16 × 16</td>
+<td>8 × 8</td>
+<td>6、7</td>
+</tr>
+<tr>
+<td>3</td>
+<td>4 × 4</td>
+<td>2 × 2</td>
+<td>8、9、10</td>
+</tr>
+</tbody></table></div>
+<p>表里的分辨率给出了格点数，每个格点存多少特征则取决于压缩档位。<strong>论文的 NTC 0.5 档在 G₀ 每个格点存 12 个特征，在 G₁ 每个格点存 20 个，每个特征占 4 bit。</strong> 底色、法线和粗糙度共用这些特征，采样时才由网络还原。</p>
+<img loading="lazy" decoding="async" src="/2026/05/21/NeuralTextureCompression/ntc-paper-feature-profiles.png" class="" title="NTC 原论文表 2 的网格通道数和位宽" alt="NTC 0.5 行的 G₀ 为 12 × 4 bit，G₁ 为 20 × 4 bit。表中尺寸和总量以 4096 × 4096、9 通道的材质为例。">
+
+<p>上图取自 Vaidyanathan 等人的论文表 2。把 NTC 0.5 的通道配置用在上一节的 1024 × 1024 例子上，按 RGBA4 的容量算，四个 4 bit 特征刚好凑成 2 字节。细格点有三组这样的数，粗格点有五组。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>论文中的第一对网格</th>
+<th>每个格点的特征</th>
+<th>每个格点的字节数</th>
+<th align="right">整张网格的特征数据</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>G₀ · 256 × 256</td>
+<td>12 通道 × 4 bit</td>
+<td>3 组 × 2 字节 &#x3D; 6 字节</td>
+<td align="right">384 KiB</td>
+</tr>
+<tr>
+<td>G₁ · 128 × 128</td>
+<td>20 通道 × 4 bit</td>
+<td>5 组 × 2 字节 &#x3D; 10 字节</td>
+<td align="right">160 KiB</td>
+</tr>
+</tbody></table></div>
+<p>第一对网格合计 544 KiB。其余三对尺寸更小，每个格点仍按同样的位数存。四对加在一起共有 1,188,368 个特征值，紧密打包占 <strong>594,184 字节，约 580 KiB</strong>。</p>
+<h2 id="解码网络的结构与参数量"><a href="#解码网络的结构与参数量" class="headerlink" title="解码网络的结构与参数量"></a>解码网络的结构与参数量</h2><p>沿用论文的 0.5 档，G₀ 四个角的向量分别送进网络，每个有 12 个分量。G₁ 的四个角先做双线性插值，只送入一个 20 维向量。再加上 12 个位置编码分量和 1 个归一化 LOD，解码一个 texel 的输入宽度就是 <strong><code>4 × 12 + 20 + 12 + 1 = 81</code></strong>。<a target="_blank" rel="noopener" href="https://arxiv.org/html/2305.17105#S4.SS3">论文第 4.3 节</a></p>
+<figure class="theme-svg-figure theme-svg-figure--asset"><a class="theme-svg-link" href="&#x2F;2026&#x2F;05&#x2F;21&#x2F;NeuralTextureCompression&#x2F;ntc-material-mlp.svg" target="_blank" rel="noopener" aria-label="原论文 NTC 0.5 档从 81 个输入分量解码石板路材质的 8 个通道"><svg style="--diagram-background:var(--color-background, #222426);--diagram-text:var(--color-text, #e6e4e0);--diagram-accent:var(--color-accent-1, #f3b958);--diagram-teal:var(--color-diagram-teal, #4bc292);--diagram-blue:var(--color-diagram-blue, #009dff);--diagram-purple:var(--color-diagram-purple, #8867a5);--diagram-orange:var(--color-diagram-orange, #f3b958)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 632 374"
+     class="theme-diagram" data-theme-svg="1" role="img"
+     aria-labelledby="diagram-7e7aec77cf-2-ntc-material-mlp-title diagram-7e7aec77cf-2-ntc-material-mlp-desc">
+<title id="diagram-7e7aec77cf-2-ntc-material-mlp-title">原论文 NTC 0.5 档解码石板路的一个 texel</title>
+<desc id="diagram-7e7aec77cf-2-ntc-material-mlp-desc">G₀ 的四个角各提供一个 12 维特征向量，四组分别拼入输入。G₁ 的四邻经过双线性插值得到一个 20 维向量，再拼入 12 个位置编码分量和 1 个归一化 LOD，合计 81 个输入。两个全连接隐藏层各有 64 个通道，使用 hardGELU 激活。图中展开部分输入和隐藏通道，强调色标出第一隐藏层一个通道及其输入连线。右侧是石板路材质的全部 8 个线性输出：底色 RGB、法线 XYZ、粗糙度和环境遮蔽。</desc>
+<style>
+.theme-diagram {
+  --d-bg: var(--diagram-background, #ffffff);
+  --d-ink: var(--diagram-text, #383838);
+  --d-accent: var(--diagram-accent, #2bbc8a);
+  --d-muted: color-mix(in srgb, var(--d-ink) 68%, var(--d-bg));
+  --d-border: color-mix(in srgb, var(--d-ink) 19%, var(--d-bg));
+  --d-surface: color-mix(in srgb, var(--d-ink) 3%, var(--d-bg));
+  --d-shadow: color-mix(in srgb, #000000 35%, var(--d-bg));
+  --d-teal: var(--diagram-teal, color-mix(in srgb, var(--d-accent) 76%, var(--d-ink)));
+  --d-blue: var(--diagram-blue, color-mix(in srgb, var(--d-accent) 28%, #6c91bc));
+  --d-purple: var(--diagram-purple, color-mix(in srgb, var(--d-accent) 15%, #a18ab9));
+  --d-orange: var(--diagram-orange, color-mix(in srgb, var(--d-accent) 10%, #d3a462));
+  font-family: var(--diagram-font, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif);
+}
+.theme-diagram text { font-family: inherit; }
+</style>
+<rect width="632" height="374" fill="var(--d-bg)"/>
+
+<!-- Representative scalar connections within each dense transform. -->
+<g fill="none" stroke="var(--d-muted)" stroke-opacity=".38" stroke-width="1.3">
+  <path d="M171 78L283 88 M171 78L283 145 M171 78L283 265 M171 78L283 325"/>
+  <path d="M171 96L283 88 M171 96L283 145 M171 96L283 265 M171 96L283 325"/>
+  <path d="M171 111L283 88 M171 111L283 145 M171 111L283 265 M171 111L283 325"/>
+  <path d="M171 129L283 88 M171 129L283 145 M171 129L283 265 M171 129L283 325"/>
+  <path d="M171 144L283 88 M171 144L283 145 M171 144L283 265 M171 144L283 325"/>
+  <path d="M171 162L283 88 M171 162L283 145 M171 162L283 265 M171 162L283 325"/>
+  <path d="M171 177L283 88 M171 177L283 145 M171 177L283 265 M171 177L283 325"/>
+  <path d="M171 195L283 88 M171 195L283 145 M171 195L283 265 M171 195L283 325"/>
+  <path d="M171 221L283 88 M171 221L283 145 M171 221L283 265 M171 221L283 325"/>
+  <path d="M171 251L283 88 M171 251L283 145 M171 251L283 265 M171 251L283 325"/>
+  <path d="M171 280L283 88 M171 280L283 145 M171 280L283 265 M171 280L283 325"/>
+  <path d="M171 310L283 88 M171 310L283 145 M171 310L283 265 M171 310L283 325"/>
+  <path d="M171 349L283 88 M171 349L283 145 M171 349L283 265 M171 349L283 325"/>
+  <path d="M283 88L394 88 M283 88L394 145 M283 88L394 265 M283 88L394 325"/>
+  <path d="M283 145L394 88 M283 145L394 145 M283 145L394 265 M283 145L394 325"/>
+  <path d="M283 265L394 88 M283 265L394 145 M283 265L394 265 M283 265L394 325"/>
+  <path d="M283 325L394 88 M283 325L394 145 M283 325L394 265 M283 325L394 325"/>
+  <path d="M394 88L501 83 M394 88L501 110 M394 88L501 137 M394 88L501 185 M394 88L501 212 M394 88L501 239 M394 88L501 284 M394 88L501 344"/>
+  <path d="M394 145L501 83 M394 145L501 110 M394 145L501 137 M394 145L501 185 M394 145L501 212 M394 145L501 239 M394 145L501 284 M394 145L501 344"/>
+  <path d="M394 265L501 83 M394 265L501 110 M394 265L501 137 M394 265L501 185 M394 265L501 212 M394 265L501 239 M394 265L501 284 M394 265L501 344"/>
+  <path d="M394 325L501 83 M394 325L501 110 M394 325L501 137 M394 325L501 185 M394 325L501 212 M394 325L501 239 M394 325L501 284 M394 325L501 344"/>
+</g>
+<g fill="none" stroke="var(--d-accent)" stroke-width="2">
+  <path d="M283 145L171 78 M283 145L171 96 M283 145L171 111 M283 145L171 129 M283 145L171 144 M283 145L171 162 M283 145L171 177 M283 145L171 195 M283 145L171 221 M283 145L171 251 M283 145L171 280 M283 145L171 310 M283 145L171 349"/>
+</g>
+
+<!-- Each of the four short brackets at the top represents one 12-component corner vector. -->
+<g fill="none" stroke-width="2">
+  <path d="M135 75h-7v123h7 M154 75h-7v24h7 M154 108h-7v24h7 M154 141h-7v24h7 M154 174h-7v24h7" stroke="var(--d-teal)"/>
+  <path d="M154 218h-7v36h7" stroke="var(--d-blue)"/>
+  <path d="M154 277h-7v36h7" stroke="var(--d-purple)"/>
+  <path d="M147 349h10" stroke="var(--d-orange)"/>
+</g>
+<g fill="var(--d-bg)" stroke-width="2.5">
+  <g stroke="var(--d-teal)">
+    <circle cx="171" cy="78" r="5"/>
+    <circle cx="171" cy="96" r="5"/>
+    <circle cx="171" cy="111" r="5"/>
+    <circle cx="171" cy="129" r="5"/>
+    <circle cx="171" cy="144" r="5"/>
+    <circle cx="171" cy="162" r="5"/>
+    <circle cx="171" cy="177" r="5"/>
+    <circle cx="171" cy="195" r="5"/>
+  </g>
+  <g stroke="var(--d-blue)">
+    <circle cx="171" cy="221" r="5.5"/>
+    <circle cx="171" cy="251" r="5.5"/>
+  </g>
+  <g stroke="var(--d-purple)">
+    <circle cx="171" cy="280" r="5.5"/>
+    <circle cx="171" cy="310" r="5.5"/>
+  </g>
+  <g stroke="var(--d-orange)">
+    <circle cx="171" cy="349" r="6"/>
+  </g>
+</g>
+
+<g fill="var(--d-bg)" stroke="var(--d-ink)" stroke-width="2.3">
+    <circle cx="283" cy="88" r="7"/>
+    <circle cx="283" cy="265" r="7"/>
+    <circle cx="283" cy="325" r="7"/>
+    <circle cx="394" cy="88" r="7"/>
+    <circle cx="394" cy="145" r="7"/>
+    <circle cx="394" cy="265" r="7"/>
+    <circle cx="394" cy="325" r="7"/>
+    <circle cx="501" cy="83" r="6"/>
+    <circle cx="501" cy="110" r="6"/>
+    <circle cx="501" cy="137" r="6"/>
+    <circle cx="501" cy="185" r="6"/>
+    <circle cx="501" cy="212" r="6"/>
+    <circle cx="501" cy="239" r="6"/>
+    <circle cx="501" cy="284" r="6"/>
+    <circle cx="501" cy="344" r="6"/>
+</g>
+<circle cx="283" cy="145" r="7.8" fill="var(--d-accent)" stroke="var(--d-ink)" stroke-width="2"/>
+<g fill="var(--d-muted)">
+    <circle cx="171" cy="85" r="1"/>
+    <circle cx="171" cy="89" r="1"/>
+    <circle cx="171" cy="118" r="1"/>
+    <circle cx="171" cy="122" r="1"/>
+    <circle cx="171" cy="151" r="1"/>
+    <circle cx="171" cy="155" r="1"/>
+    <circle cx="171" cy="184" r="1"/>
+    <circle cx="171" cy="188" r="1"/>
+    <circle cx="171" cy="232" r="1.3"/>
+    <circle cx="171" cy="236" r="1.3"/>
+    <circle cx="171" cy="240" r="1.3"/>
+    <circle cx="171" cy="291" r="1.3"/>
+    <circle cx="171" cy="295" r="1.3"/>
+    <circle cx="171" cy="299" r="1.3"/>
+    <circle cx="283" cy="198" r="1.85"/>
+    <circle cx="283" cy="205" r="1.85"/>
+    <circle cx="283" cy="212" r="1.85"/>
+    <circle cx="394" cy="198" r="1.85"/>
+    <circle cx="394" cy="205" r="1.85"/>
+    <circle cx="394" cy="212" r="1.85"/>
+</g>
+
+<!-- Output brackets group scalars by material property. -->
+<g stroke="var(--d-muted)" stroke-width="1.9" fill="none">
+  <path d="M512 83h8v54h-8 M520 110h8"/>
+  <path d="M512 185h8v54h-8 M520 212h8"/>
+  <path d="M510 284h18 M510 344h18"/>
+</g>
+
+<g text-anchor="middle" fill="var(--d-ink)" font-size="21" font-weight="600">
+  <text x="171" y="26">输入向量</text>
+  <text x="283" y="26">隐藏层 1</text>
+  <text x="394" y="26">隐藏层 2</text>
+  <text x="501" y="26">线性输出</text>
+</g>
+<g text-anchor="middle" fill="var(--d-muted)" font-size="21">
+  <text x="171" y="52">81</text><text x="283" y="52">64</text>
+  <text x="394" y="52">64</text><text x="501" y="52">8</text>
+</g>
+<g text-anchor="end" fill="var(--d-ink)" font-size="21">
+  <text x="117" y="132">G₀ 四邻</text>
+  <text x="135" y="231">G₁ 双线性插值</text>
+  <text x="135" y="290">位置编码</text>
+  <text x="135" y="344">归一化 LOD</text>
+</g>
+<g text-anchor="end" fill="var(--d-muted)" font-size="20">
+  <text x="117" y="156">4 × 12</text>
+  <text x="135" y="255">20</text>
+  <text x="135" y="314">12</text>
+  <text x="135" y="368">1</text>
+</g>
+<g fill="var(--d-ink)" font-size="21">
+  <text x="538" y="117">底色 RGB</text>
+  <text x="538" y="219">法线 XYZ</text>
+  <text x="538" y="291">粗糙度</text>
+  <text x="538" y="351">环境遮蔽</text>
+</g>
+</svg></a></figure>
+
+<p>图中的两个隐藏层各有 64 个通道。第一层的每个通道都读左边的 81 个数，所以这一层要存 <code>81 × 64 = 5,184</code> 个权重。两个隐藏层都用 hardGELU 做激活，输出层做线性变换。右侧的 8 个输出里，石板路的底色 RGB 和法线 XYZ 各占 3 个通道，粗糙度和环境遮蔽各占 1 个。图根据 Vaidyanathan 等人的论文图 4 绘制。<a target="_blank" rel="noopener" href="https://arxiv.org/html/2305.17105#S4.SS4">网络结构</a>、<a target="_blank" rel="noopener" href="https://arxiv.org/html/2305.17105#S6.SS5.SSS2">石板路的材质通道</a></p>
+<p>整套材质的所有 texel 和 mip 共用这份权重和偏置。论文附录里，0.5 档的 2K、4K 和 8K 材质都用 <strong>27 kB</strong> 存网络参数，4K 材质另外用 <strong>8.5 MB</strong> 存特征网格。<a target="_blank" rel="noopener" href="https://research.nvidia.com/labs/rtr/neural_texture_compression/assets/ntc_supplementary.pdf#page=6">补充材料表 6</a></p>
+<h2 id="从-UV-到-PBR-材质通道"><a href="#从-UV-到-PBR-材质通道" class="headerlink" title="从 UV 到 PBR 材质通道"></a>从 UV 到 PBR 材质通道</h2><p>回到石缝左侧的 texel A。它在 mip 0 上的坐标是 <code>(2, 5)</code>，中心对应 <code>UV = (2.5 / 1024, 5.5 / 1024)</code>。shader 按 mip 0 选中特征层 0，用这个 UV 从 G₀ 取四个角的向量，从 G₁ 取一个双线性插值后的向量。再拼上 A 的位置编码和归一化 LOD，解码器就知道要重建格子里的哪个位置、哪一级 mip。</p>
+<figure class="theme-svg-figure theme-svg-figure--asset"><a class="theme-svg-link" href="&#x2F;2026&#x2F;05&#x2F;21&#x2F;NeuralTextureCompression&#x2F;ntc-texel-to-pbr.svg" target="_blank" rel="noopener" aria-label="原论文从 UV 和目标 mip 解码一个 texel 的 PBR 材质通道"><svg style="--diagram-background:var(--color-background, #222426);--diagram-text:var(--color-text, #e6e4e0);--diagram-accent:var(--color-accent-1, #f3b958);--diagram-teal:var(--color-diagram-teal, #4bc292);--diagram-blue:var(--color-diagram-blue, #009dff);--diagram-purple:var(--color-diagram-purple, #8867a5);--diagram-orange:var(--color-diagram-orange, #f3b958)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 496"
+     class="theme-diagram" data-theme-svg="1" role="img"
+     aria-labelledby="diagram-6e8f7f252d-3-ntc-texel-to-pbr-title diagram-6e8f7f252d-3-ntc-texel-to-pbr-desc">
+<title id="diagram-6e8f7f252d-3-ntc-texel-to-pbr-title">从 UV 和目标 mip 采样石板路材质的八个通道</title>
+<desc id="diagram-6e8f7f252d-3-ntc-texel-to-pbr-desc">目标 mip 选定一对特征网格。在同一 UV 处，细网格 G₀ 提供四个邻点各自的向量，粗网格 G₁ 提供一个双线性插值后的向量。再拼入十二个局部位置编码分量和一个归一化 LOD，材质 MLP 一次输出这个 texel 的底色 RGB、法线 XYZ、粗糙度和环境遮蔽，共八个通道。</desc>
+<style>
+.theme-diagram {
+  --d-bg: var(--diagram-background, #ffffff);
+  --d-ink: var(--diagram-text, #383838);
+  --d-accent: var(--diagram-accent, #2bbc8a);
+  --d-muted: color-mix(in srgb, var(--d-ink) 68%, var(--d-bg));
+  --d-border: color-mix(in srgb, var(--d-ink) 19%, var(--d-bg));
+  --d-surface: color-mix(in srgb, var(--d-ink) 3%, var(--d-bg));
+  --d-shadow: color-mix(in srgb, #000000 35%, var(--d-bg));
+  --d-teal: var(--diagram-teal, color-mix(in srgb, var(--d-accent) 76%, var(--d-ink)));
+  --d-blue: var(--diagram-blue, color-mix(in srgb, var(--d-accent) 28%, #6c91bc));
+  --d-purple: var(--diagram-purple, color-mix(in srgb, var(--d-accent) 15%, #a18ab9));
+  --d-orange: var(--diagram-orange, color-mix(in srgb, var(--d-accent) 10%, #d3a462));
+  font-family: var(--diagram-font, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif);
+}
+.theme-diagram text { font-family: inherit; }
+</style>
+<defs>
+  <marker id="diagram-6e8f7f252d-3-ntc-texel-to-pbr-arrow" viewBox="0 0 10 10" markerWidth="5.8" markerHeight="5.8" refX="9" refY="5" orient="auto">
+    <path d="M0 0 10 5 0 10Z" fill="context-stroke"/>
+  </marker>
+</defs>
+<rect width="640" height="496" fill="var(--d-bg)"/>
+
+<!-- Query arguments. -->
+<rect x="158" y="14" width="324" height="51" rx="8" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="2"/>
+<g stroke="var(--d-muted)" stroke-width="2" fill="none">
+  <path d="M181 28h24v24h-24z M193 28v24 M181 40h24"/>
+  <path d="M301 24v31" stroke="var(--d-border)"/>
+  <path d="M320 45l13 7 13-7 M320 39l13 7 13-7 M320 33l13-7 13 7-13 7z"/>
+</g>
+<circle cx="197" cy="35" r="3.8" fill="var(--d-ink)"/>
+<g fill="var(--d-ink)" font-size="25">
+  <text x="220" y="48">UV</text>
+  <text x="358" y="48">目标 mip</text>
+</g>
+<g fill="none" stroke="var(--d-muted)" stroke-width="2.4">
+  <path d="M320 65v17 M174 82h383"/>
+  <g marker-end="url(#diagram-6e8f7f252d-3-ntc-texel-to-pbr-arrow)">
+    <path d="M174 82v20"/>
+    <path d="M414 82v69"/>
+    <path d="M557 82v69"/>
+  </g>
+</g>
+
+<!-- The selected feature level and the very same UV in both grids. -->
+<rect x="18" y="107" width="309" height="157" rx="8" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="2"/>
+<text x="172" y="134" text-anchor="middle" font-size="23" fill="var(--d-ink)">特征层 Fℓ</text>
+<g stroke="var(--d-teal)" fill="none">
+  <rect x="60" y="147" width="72" height="72" stroke-width="2"/>
+  <path d="M78 147v72 M96 147v72 M114 147v72 M60 165h72 M60 183h72 M60 201h72" stroke-width="1.7"/>
+  <rect x="96" y="165" width="18" height="18" fill="color-mix(in srgb, var(--d-teal) 27%, var(--d-bg))" stroke-width="2.2"/>
+  <g fill="var(--d-teal)"><circle cx="96" cy="165" r="3.5"/><circle cx="114" cy="165" r="3.5"/><circle cx="96" cy="183" r="3.5"/><circle cx="114" cy="183" r="3.5"/></g>
+</g>
+<g stroke="var(--d-blue)" fill="none">
+  <rect x="209" y="147" width="72" height="72" stroke-width="2"/>
+  <path d="M245 147v72 M209 183h72" stroke-width="1.7"/>
+  <rect x="245" y="147" width="36" height="36" fill="color-mix(in srgb, var(--d-blue) 17%, var(--d-bg))" stroke-width="2.2"/>
+  <path d="M245 147l10 28 26-28 M245 183l10-8 26 8" stroke-width="1.5" stroke-dasharray="3 2"/>
+  <g fill="var(--d-blue)"><circle cx="245" cy="147" r="3.5"/><circle cx="281" cy="147" r="3.5"/><circle cx="245" cy="183" r="3.5"/><circle cx="281" cy="183" r="3.5"/></g>
+</g>
+<g fill="var(--d-ink)" stroke="var(--d-bg)" stroke-width="1.3">
+  <circle cx="106" cy="175" r="4.6"/><circle cx="255" cy="175" r="4.6"/>
+</g>
+
+<!-- The two coordinate-dependent inputs. -->
+<g stroke="var(--d-purple)" fill="none" stroke-width="2.6" stroke-linejoin="round">
+  <path d="M374 176l20-12 40 24 20-12"/>
+  <path d="M374 201l10-9 20 18 20-18 20 18 10-9"/>
+</g>
+<g stroke="var(--d-orange)" fill="none" stroke-width="2.4">
+  <path d="M527 189h60 M527 183v12 M557 183v12 M587 183v12"/>
+  <circle cx="547" cy="189" r="5" fill="var(--d-orange)"/>
+</g>
+<g fill="var(--d-ink)" font-size="24" text-anchor="middle">
+  <text x="96" y="251">G₀</text><text x="245" y="251">G₁</text>
+  <text x="414" y="251">局部位置编码</text><text x="557" y="251">归一化 LOD</text>
+</g>
+
+<!-- The preserved corners, a bilinear result, and the conditioning scalars. -->
+<g fill="none" stroke-width="2.4">
+  <g stroke="var(--d-teal)">
+    <path d="M96 264v14 M43 278h111"/>
+    <path d="M43 278v18 M80 278v18 M117 278v18 M154 278v18"/>
+  </g>
+  <g stroke="var(--d-blue)">
+    <path d="M221 264l24 17 24-17 M237 264l8 17 8-17 M245 281v15"/>
+  </g>
+  <path d="M414 259v36" stroke="var(--d-purple)" marker-end="url(#diagram-6e8f7f252d-3-ntc-texel-to-pbr-arrow)"/>
+  <path d="M557 259v36" stroke="var(--d-orange)" marker-end="url(#diagram-6e8f7f252d-3-ntc-texel-to-pbr-arrow)"/>
+</g>
+<g stroke-width="1.8">
+  <rect x="24" y="301" width="149" height="38" rx="4" fill="color-mix(in srgb, var(--d-teal) 18%, var(--d-bg))" stroke="var(--d-teal)"/>
+  <path d="M61 301v38 M98 301v38 M135 301v38" stroke="var(--d-teal)"/>
+  <rect x="178" y="301" width="134" height="38" rx="4" fill="color-mix(in srgb, var(--d-blue) 18%, var(--d-bg))" stroke="var(--d-blue)"/>
+  <rect x="317" y="301" width="183" height="38" rx="4" fill="color-mix(in srgb, var(--d-purple) 18%, var(--d-bg))" stroke="var(--d-purple)"/>
+  <rect x="505" y="301" width="111" height="38" rx="4" fill="color-mix(in srgb, var(--d-orange) 18%, var(--d-bg))" stroke="var(--d-orange)"/>
+</g>
+<g fill="var(--d-ink)" font-size="23" text-anchor="middle">
+  <text x="43" y="328">C₀</text><text x="80" y="328">C₀</text><text x="117" y="328">C₀</text><text x="154" y="328">C₀</text>
+  <text x="245" y="328">C₁</text><text x="414" y="328">12</text><text x="557" y="328">1</text>
+</g>
+<g stroke="var(--d-muted)" fill="none" stroke-width="2.4">
+  <path d="M25 346v9h590v-9"/>
+  <path d="M320 355v20" marker-end="url(#diagram-6e8f7f252d-3-ntc-texel-to-pbr-arrow)"/>
+</g>
+<!-- Decoder for the eight-channel Paving Stones material. -->
+<rect x="228" y="380" width="184" height="42" rx="6" fill="var(--d-surface)" stroke="var(--d-muted)" stroke-width="2"/>
+<text x="320" y="410" text-anchor="middle" font-size="25" fill="var(--d-ink)">材质 MLP</text>
+<g stroke="var(--d-muted)" fill="none" stroke-width="2.4">
+  <path d="M320 422v16 M83 438h470"/>
+  <g marker-end="url(#diagram-6e8f7f252d-3-ntc-texel-to-pbr-arrow)">
+    <path d="M83 438v17"/><path d="M234 438v17"/><path d="M394 438v17"/><path d="M553 438v17"/>
+  </g>
+</g>
+<g fill="var(--d-ink)" font-size="25" text-anchor="middle">
+  <text x="83" y="481">底色 RGB</text><text x="234" y="481">法线 XYZ</text>
+  <text x="394" y="481">粗糙度</text><text x="553" y="481">环境遮蔽</text>
+</g>
+</svg></a></figure>
+
+<p>图中间的输入向量宽 <code>4C₀ + C₁ + 12 + 1</code>，其中 C₀ 和 C₁ 分别是两张网格每个格点的特征数。一次 MLP 计算给出 A 处的底色、法线、粗糙度和环境遮蔽。要得到双线性过滤后的材质值，还要混合相邻 texel 的结果。图根据 Vaidyanathan 等人的论文图 4 绘制。</p>
+<h2 id="量化参与训练"><a href="#量化参与训练" class="headerlink" title="量化参与训练"></a>量化参与训练</h2><p>对 NTC 来说，压缩一套 PBR 纹理，就是拿这套材质的贴图和各级 mip 训练它自己的特征网格与解码器。训练结束后，量化的格点值和网络参数就是随材质保存的压缩数据。</p>
+<p>原论文采用 <em>autodecoder</em>，直接优化网格和解码器的参数，省去通用编码器。每一步先选一个 mip 和一批 texel，沿运行时的路径解码，再把预测出的通道值与原贴图相同位置的值比较。误差沿解码器传回参与采样的格点。格点学到局部信息，同一套权重则从不同位置和 mip 的样本中学习如何解释这些特征。</p>
+<figure class="theme-svg-figure theme-svg-figure--asset"><a class="theme-svg-link" href="&#x2F;2026&#x2F;05&#x2F;21&#x2F;NeuralTextureCompression&#x2F;ntc-material-training.svg" target="_blank" rel="noopener" aria-label="同一 texel 的材质真值与预测通道如何共同决定网格和解码器的更新"><svg style="--diagram-background:var(--color-background, #222426);--diagram-text:var(--color-text, #e6e4e0);--diagram-accent:var(--color-accent-1, #f3b958);--diagram-teal:var(--color-diagram-teal, #4bc292);--diagram-blue:var(--color-diagram-blue, #009dff);--diagram-purple:var(--color-diagram-purple, #8867a5);--diagram-orange:var(--color-diagram-orange, #f3b958)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 310"
+     class="theme-diagram" data-theme-svg="1" role="img"
+     aria-labelledby="diagram-49dd5a7f8a-4-ntc-material-training-title diagram-49dd5a7f8a-4-ntc-material-training-desc">
+<title id="diagram-49dd5a7f8a-4-ntc-material-training-title">一次材质采样的训练回路</title>
+<desc id="diagram-49dd5a7f8a-4-ntc-material-training-desc">从特征网格的一处邻域读取值，经材质专用解码器得到预测通道。与同一 texel 的参考通道比较产生重建误差。虚线将梯度带回解码器权重与被采样的网格。</desc>
+<style>
+.theme-diagram {
+  --d-bg: var(--diagram-background, #ffffff);
+  --d-ink: var(--diagram-text, #383838);
+  --d-accent: var(--diagram-accent, #2bbc8a);
+  --d-muted: color-mix(in srgb, var(--d-ink) 68%, var(--d-bg));
+  --d-border: color-mix(in srgb, var(--d-ink) 19%, var(--d-bg));
+  --d-surface: color-mix(in srgb, var(--d-ink) 3%, var(--d-bg));
+  --d-shadow: color-mix(in srgb, #000000 35%, var(--d-bg));
+  --d-teal: var(--diagram-teal, color-mix(in srgb, var(--d-accent) 76%, var(--d-ink)));
+  --d-blue: var(--diagram-blue, color-mix(in srgb, var(--d-accent) 28%, #6c91bc));
+  --d-purple: var(--diagram-purple, color-mix(in srgb, var(--d-accent) 15%, #a18ab9));
+  --d-orange: var(--diagram-orange, color-mix(in srgb, var(--d-accent) 10%, #d3a462));
+  font-family: var(--diagram-font, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif);
+}
+.theme-diagram text { font-family: inherit; }
+</style>
+<defs>
+  <marker id="diagram-49dd5a7f8a-4-ntc-material-training-arrow" viewBox="0 0 10 10" markerWidth="6" markerHeight="6" refX="9" refY="5" orient="auto">
+    <path d="M0 0L10 5L0 10Z" fill="context-stroke"/>
+  </marker>
+</defs>
+<rect width="720" height="310" fill="var(--d-bg)"/>
+
+<!-- Sampled neighborhood and the material-specific weight matrix. -->
+<g stroke="var(--d-teal)" stroke-width="2">
+  <rect x="34" y="136" width="120" height="80" rx="3" fill="var(--d-surface)"/>
+  <rect x="74" y="156" width="40" height="40" fill="color-mix(in srgb, var(--d-teal) 42%, var(--d-bg))"/>
+  <path d="M54 136v80 M74 136v80 M94 136v80 M114 136v80 M134 136v80
+           M34 156h120 M34 176h120 M34 196h120" stroke-width="1.4" fill="none"/>
+  <circle cx="96" cy="174" r="5" fill="var(--d-ink)" stroke="var(--d-bg)"/>
+</g>
+<g stroke="var(--d-purple)" stroke-width="2">
+  <rect x="218" y="136" width="100" height="80" rx="3" fill="var(--d-surface)"/>
+  <path d="M218 136h20v20h20v20h-40z M278 156h40v20h-20v20h-20z M238 196h40v20h-40z"
+        fill="color-mix(in srgb, var(--d-purple) 42%, var(--d-bg))" stroke="none"/>
+  <path d="M238 136v80 M258 136v80 M278 136v80 M298 136v80 M218 156h100 M218 176h100 M218 196h100"
+        stroke-width="1.4" fill="none"/>
+</g>
+
+<!-- Two samples from the same texel, aligned channel for channel. -->
+<g fill="var(--d-blue)">
+  <rect x="424" y="36" width="50" height="9" rx="3"/>
+  <rect x="424" y="50" width="29" height="9" rx="3"/>
+  <rect x="424" y="64" width="65" height="9" rx="3"/>
+  <rect x="424" y="155" width="45" height="9" rx="3"/>
+  <rect x="424" y="169" width="32" height="9" rx="3"/>
+  <rect x="424" y="183" width="61" height="9" rx="3"/>
+</g>
+<path d="M413 31v48 M413 150v48" fill="none" stroke="var(--d-muted)" stroke-width="2"/>
+<g stroke="var(--d-orange)" stroke-width="2">
+  <circle cx="610" cy="172" r="29" fill="var(--d-surface)"/>
+  <path d="M597 162h26 M597 172h13 M597 182h18" fill="none" stroke-width="4" stroke-linecap="round"/>
+</g>
+<g fill="none" stroke="var(--d-muted)" stroke-width="2.8" marker-end="url(#diagram-49dd5a7f8a-4-ntc-material-training-arrow)">
+  <path d="M161 174h48"/>
+  <path d="M325 174h77"/>
+  <path d="M498 174h74"/>
+  <path d="M499 54h111v80"/>
+</g>
+<g fill="none" stroke="var(--d-orange)" stroke-width="2.8" stroke-dasharray="7 5">
+  <path d="M643 172h27v85H95v-32" marker-end="url(#diagram-49dd5a7f8a-4-ntc-material-training-arrow)"/>
+  <path d="M268 257v-32" marker-end="url(#diagram-49dd5a7f8a-4-ntc-material-training-arrow)"/>
+</g>
+<g fill="var(--d-ink)" font-size="27" text-anchor="middle">
+  <text x="94" y="119">特征网格</text>
+  <text x="268" y="119">解码器权重</text>
+  <text x="449" y="119">预测通道</text>
+  <text x="605" y="232">重建误差</text>
+  <text x="343" y="64">材质真值</text>
+  <text x="415" y="289">梯度</text>
+</g>
+</svg></a></figure>
+
+<p>实线表示一次解码与比较，虚线表示重建误差回传。论文每批从同一 mip 随机抽 8 个 256 × 256 的区域。大多数批次按各 mip 的面积选层，另外 5% 在各级间均匀选层，让面积很小的 mip 也有机会参与训练。<a target="_blank" rel="noopener" href="https://research.nvidia.com/labs/rtr/neural_texture_compression/assets/ntc_small_size.pdf#page=7">论文第 5.1 节</a></p>
+<p>每张网格的特征位宽预先给定。设相邻量化值间隔为 Δ，训练时给特征加入 <code>[−Δ/2, Δ/2]</code> 的均匀噪声，并在每次更新后把值限制在可表示范围内。论文还把零对齐到一个可表示值上，这对只有 4 个取值的 2 bit 特征尤其重要。训练末段，压缩器把网格舍入到实际的离散值并冻结，再用约 5% 的额外步数只调整网络权重，让解码器适应最终要存盘的那一组数值。<a target="_blank" rel="noopener" href="https://research.nvidia.com/labs/rtr/neural_texture_compression/assets/ntc_small_size.pdf#page=5">论文第 4.2 节</a></p>
+<img loading="lazy" decoding="async" src="/2026/05/21/NeuralTextureCompression/ntc-paper-loss-comparison.png" class="" title="损失函数怎样影响颜色和细节" alt="从左到右是参考贴图、只用 L2 的重建，以及加入 SSIM 项的重建">
+
+<p>中间只用 L2，颜色较准，部分细纹变平。右边加入 SSIM 项，细纹更清楚，但出现了偏色。作者最终选择了 L2。图裁自 Vaidyanathan 等人的 NVIDIA NTC 论文图 6，材质来自 ambientCG。</p>
+<p>每套新材质都要单独训练。论文实现把网格采样、所有网络层、损失和反向传播融合进一个 CUDA kernel，让网络激活值留在寄存器里。</p>
+<img loading="lazy" decoding="async" src="/2026/05/21/NeuralTextureCompression/ntc-paper-training-performance.png" class="" title="CUDA 实现与 PyTorch 的训练时间" alt="横轴为对数时间，纵轴为 PSNR，圆点为作者的 CUDA 实现，叉号为 PyTorch 参考实现">
+
+<p>在 RTX 4090 上压缩一套 4096 × 4096、9 通道材质时，作者的实现比其 PyTorch 参考版本快约 10 倍。1.0 档训练显存低于 2 GB，参考版本接近 18 GB。图裁自 Vaidyanathan 等人的 NVIDIA NTC 论文图 11。<a target="_blank" rel="noopener" href="https://research.nvidia.com/labs/rtr/neural_texture_compression/assets/ntc_small_size.pdf#page=10">论文第 6.5.1 节</a></p>
+<h2 id="如何处理纹理过滤"><a href="#如何处理纹理过滤" class="headerlink" title="如何处理纹理过滤"></a>如何处理纹理过滤</h2><p>NTC 在材质着色器里解码时，硬件无法直接对材质值做双线性或三线性过滤。纹理单元读到的是网格特征，每个 texel 的底色、法线等属性要经过一次 MLP 解码才能得到。</p>
+<p>用软件过滤可以先解码、再插值。双线性过滤要取同一 mip 上的 4 个相邻 texel，一次采样就得跑 4 次 MLP。三线性过滤还要混合相邻两级 mip，推理次数增到 8 次。</p>
+<p>论文采用<strong>随机纹理采样</strong>，把插值权重当作抽样概率。LOD 落在两级 mip 之间时，先抽一级，再从这一层的相邻 texel 中抽一个，只跑一次 MLP 就能着色。单帧会有噪声，但每帧都会重新抽样。TAA 或 DLSS 超分这样的时域重建技术可以把历史帧对齐到当前帧，累积着色后的颜色，逐渐压低噪声。<a target="_blank" rel="noopener" href="https://arxiv.org/html/2305.17105#S5.SS3">NTC 论文第 5.3 节</a></p>
+<img loading="lazy" decoding="async" src="/2026/05/21/NeuralTextureCompression/ntc-paper-stochastic-filtering.png" class="" title="论文图 8 的高光边界" alt="左上为最近邻、右上为三线性、左下为单帧随机过滤、右下为时域重建">
+
+<p>看图 8 的下排，左侧是单帧随机采样，高光边缘散布着噪点。右侧经 DLSS 时域重建，边缘变得平滑。图取自 Vaidyanathan 等人的论文，材质来自 ambientCG。</p>
+<h2 id="采样成本"><a href="#采样成本" class="headerlink" title="采样成本"></a>采样成本</h2><p>论文表 4 测的是 RTX 4090 绘制一张覆盖 3840 × 2160 屏幕的四边形。Paving Stones 材质有 8 个 4K 通道，着色使用一盏方向光和 GGX。BC high 使用硬件三线性过滤，NTC 使用随机过滤。下表的时间包含这次绘制的材质读取和着色，输入宽度按前面的 <code>4C₀ + C₁ + 13</code> 从表 2 的配置算出。<a target="_blank" rel="noopener" href="https://research.nvidia.com/labs/rtr/neural_texture_compression/assets/ntc_small_size.pdf#page=8">论文表 2</a>、<a target="_blank" rel="noopener" href="https://research.nvidia.com/labs/rtr/neural_texture_compression/assets/ntc_small_size.pdf#page=10">表 4 及测试条件</a></p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>配置</th>
+<th>G₀ &#x2F; G₁ 每格特征数</th>
+<th>网络输入宽度</th>
+<th>全屏绘制耗时</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>BC high</td>
+<td>—</td>
+<td>—</td>
+<td>0.49 ms</td>
+</tr>
+<tr>
+<td>NTC 0.2</td>
+<td>8 &#x2F; 12</td>
+<td>57</td>
+<td>1.15 ms</td>
+</tr>
+<tr>
+<td>NTC 0.5</td>
+<td>12 &#x2F; 20</td>
+<td>81</td>
+<td>1.46 ms</td>
+</tr>
+<tr>
+<td>NTC 1.0</td>
+<td>12 &#x2F; 10</td>
+<td>71</td>
+<td>1.33 ms</td>
+</tr>
+<tr>
+<td>NTC 2.25</td>
+<td>16 &#x2F; 12</td>
+<td>89</td>
+<td>1.92 ms</td>
+</tr>
+</tbody></table></div>
+<p>0.5 档比 1.0 档省空间，这次绘制却稍慢。1.0 档把最高分辨率的 G₀ 从 1024² 增至 2048²，同时把每个 G₀ 分量从 4 bit 降到 2 bit，G₁ 也从 20 个分量减到 10 个。存储量随格点总数增长，一次查询的输入反而变窄。论文另测了把 8 个 texel 全部解码再做三线性的实现，相对随机过滤慢约 8 倍。</p>
+<p>在光追命中着色器里，同一 SIMD 组的光线可能命中不同材质。论文使用的矩阵指令要求组内线程共用一套网络权重。每个线程负责一个 texel，通过 shuffle 指令在寄存器间交换输入，以适配矩阵布局。附录 A 的原型在全组线程都活跃时，依次广播每种材质的权重地址，全组计算，只有材质匹配的线程保留结果。组内有几套权重，就可能需要算几轮。部分线程未激活时，原型改走普通算术路径。<a target="_blank" rel="noopener" href="https://research.nvidia.com/labs/rtr/neural_texture_compression/assets/ntc_small_size.pdf#page=7">论文第 5.2 节</a>、<a target="_blank" rel="noopener" href="https://arxiv.org/html/2305.17105#A1">附录 A</a></p>
+<h2 id="NTC-SDK-测试"><a href="#NTC-SDK-测试" class="headerlink" title="NTC SDK 测试"></a>NTC SDK 测试</h2><img loading="lazy" decoding="async" src="/2026/05/21/NeuralTextureCompression/ntc-flighthelmet-preview.png" class="" title="FlightHelmet 的 RTXNTC 示例画面" alt="头盔模型及其材质在示例渲染器中的显示效果">
+
+<p>图中是原技术分享测试 RTXNTC 时使用的 FlightHelmet。头盔的 <code>GlassPlasticMat</code> 有三张贴图，分别是底色、法线和 ORM（遮蔽、粗糙度、金属度）。把这套材质的压缩文件和 RenderDoc 抓帧对起来，可以看到三张贴图共用的特征都在同一个 GPU 纹理数组里，一共占四个数组层。<a target="_blank" rel="noopener" href="https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/FlightHelmet">Flight Helmet 模型与材质来源</a></p>
+<h3 id="特征纹理数组的通道布局"><a href="#特征纹理数组的通道布局" class="headerlink" title="特征纹理数组的通道布局"></a>特征纹理数组的通道布局</h3><p><code>GlassPlasticMat.ntc</code> 的 <code>numFeatures</code> 为 16。SDK 按每四个特征一组，把它们分到一张 <code>Texture2DArray</code> 的四个数组层里。固定 mip 和格点坐标 <code>(x, y)</code>，四层在同一位置各存四个数，拼起来就是该尺度的 16 个学习特征。每层有自己的 8 级 mip，从 512 × 512 到 4 × 4。切换数组层选的是另一组特征，切换 mip 选的是这些特征在另一种分辨率下训练出的值。</p>
+<p>下表用 F0 到 F15 表示这 16 个特征。数组格式为 BGRA4 UNORM，同一格点在每个数组层占 16 bit，四层合计 8 字节。表中四列按存储字从低位到高位排列，每个通道占 4 bit。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>数组层</th>
+<th>B（位 0–3）</th>
+<th>G（位 4–7）</th>
+<th>R（位 8–11）</th>
+<th>A（位 12–15）</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0</td>
+<td>F0</td>
+<td>F1</td>
+<td>F2</td>
+<td>F3</td>
+</tr>
+<tr>
+<td>1</td>
+<td>F4</td>
+<td>F5</td>
+<td>F6</td>
+<td>F7</td>
+</tr>
+<tr>
+<td>2</td>
+<td>F8</td>
+<td>F9</td>
+<td>F10</td>
+<td>F11</td>
+</tr>
+<tr>
+<td>3</td>
+<td>F12</td>
+<td>F13</td>
+<td>F14</td>
+<td>F15</td>
+</tr>
+</tbody></table></div>
+<img loading="lazy" decoding="async" src="/2026/05/21/NeuralTextureCompression/ntc-latent-slice1-channels.png" class="" title="数组层 1 的四个特征通道" alt="左上为 B 中的 F4，右上为 G 中的 F5，左下为 R 中的 F6，右下为 A 中的 F7。越亮表示格点的量化值越大">
+
+<p>这四幅图直接取自 <code>GlassPlasticMat.ntc</code> 的数组层 1、mip 0。每幅都是 512 × 512 个格点，用同一套灰度显示 0 到 15 的量化值。左上角的格点在文件里占两个字节 <code>F9 13</code>，按小端读成 <code>0x13F9</code>。从最低四位开始拆，依次得到 F4 &#x3D; 9、F5 &#x3D; 15、F6 &#x3D; 3、F7 &#x3D; 1。<a target="_blank" rel="noopener" href="https://github.com/NVIDIA-RTX/RTXNTC-Library/blob/7ab602cb9b42ee3856e63c7a6b5e9575af051a4c/src/Quantizer.cu#L496-L526">SDK 的 4 bit 特征打包实现</a></p>
+<p>按每个格点 2 字节计算，一个数组层的 8 级 mip 合计 <code>2 × (512² + 256² + … + 4²) = 699,040</code> 字节。四层的特征数据一共 <strong>2,796,160 字节，约 2.67 MiB</strong>。</p>
+<p>SDK 的码率预设以整套材质每像素的位数（BPP）计，主要调整网格分辨率和每格有效特征数。例如固定 <code>gridSizeScale = 4</code>，把 <code>numFeatures</code> 从 8 增至 12，数组层数就从 2 增至 3。每个尺度多出 4 个分量，特征存储增加一半。解码器第一层的输入仍是 48 维，未用的槽位填零。<a target="_blank" rel="noopener" href="https://github.com/NVIDIA-RTX/RTXNTC-Library/blob/a8dca629c51708273560c08e9df771a496e49011/src/PublicFunctions.cpp#L384-L396">SDK 预设与码率计算</a></p>
+<h3 id="FlightHelmet-的一次材质采样"><a href="#FlightHelmet-的一次材质采样" class="headerlink" title="FlightHelmet 的一次材质采样"></a>FlightHelmet 的一次材质采样</h3><p>原论文把细网格四个邻点的向量分别交给 MLP。<strong>RTXNTC 在实现上细网格上也直接用硬件双线性插值</strong>，所以 FlightHelmet 的细、粗两个尺度各给出一个 16 维向量。重建材质 mip 0 时，shader 用同一个 texel 中心坐标 <code>uv = (texel + 0.5) / mipSize</code>，分别读取特征数组的 mip 0（512 × 512）和 mip 1（256 × 256）。<a target="_blank" rel="noopener" href="https://github.com/NVIDIA-RTX/RTXNTC-Library/blob/a8dca629c51708273560c08e9df771a496e49011/src/FeatureGridMath.cpp#L47-L64">特征 mip 映射</a>、<a target="_blank" rel="noopener" href="https://github.com/NVIDIA-RTX/RTXNTC-Library/blob/a8dca629c51708273560c08e9df771a496e49011/include/libntc/shaders/InferenceCoopVec.hlsli#L23-L125">SDK 输入准备代码</a></p>
+<figure class="theme-svg-figure theme-svg-figure--asset"><a class="theme-svg-link" href="&#x2F;2026&#x2F;05&#x2F;21&#x2F;NeuralTextureCompression&#x2F;ntc-latent-inputs.svg" target="_blank" rel="noopener" aria-label="FlightHelmet 的四个数组层、两个被选中的 mip 及其在 48 维输入中的位置"><svg style="--diagram-background:var(--color-background, #222426);--diagram-text:var(--color-text, #e6e4e0);--diagram-accent:var(--color-accent-1, #f3b958);--diagram-teal:var(--color-diagram-teal, #4bc292);--diagram-blue:var(--color-diagram-blue, #009dff);--diagram-purple:var(--color-diagram-purple, #8867a5);--diagram-orange:var(--color-diagram-orange, #f3b958)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 364"
+     class="theme-diagram" data-theme-svg="1" role="img"
+     aria-labelledby="diagram-3f168937d0-5-ntc-latent-inputs-title diagram-3f168937d0-5-ntc-latent-inputs-desc">
+<title id="diagram-3f168937d0-5-ntc-latent-inputs-title">FlightHelmet 特征数组与解码器输入</title>
+<desc id="diagram-3f168937d0-5-ntc-latent-inputs-desc">表格每行代表一个数组层，每列代表一个特征 mip。用于当前查询的两列分别将四个四分量采样结果写进输入向量。向量尾部是位置编码、两份 LOD 以及填充。下方色带的宽度与分量数成比例。</desc>
+<style>
+.theme-diagram {
+  --d-bg: var(--diagram-background, #ffffff);
+  --d-ink: var(--diagram-text, #383838);
+  --d-accent: var(--diagram-accent, #2bbc8a);
+  --d-muted: color-mix(in srgb, var(--d-ink) 68%, var(--d-bg));
+  --d-border: color-mix(in srgb, var(--d-ink) 19%, var(--d-bg));
+  --d-surface: color-mix(in srgb, var(--d-ink) 3%, var(--d-bg));
+  --d-shadow: color-mix(in srgb, #000000 35%, var(--d-bg));
+  --d-teal: var(--diagram-teal, color-mix(in srgb, var(--d-accent) 76%, var(--d-ink)));
+  --d-blue: var(--diagram-blue, color-mix(in srgb, var(--d-accent) 28%, #6c91bc));
+  --d-purple: var(--diagram-purple, color-mix(in srgb, var(--d-accent) 15%, #a18ab9));
+  --d-orange: var(--diagram-orange, color-mix(in srgb, var(--d-accent) 10%, #d3a462));
+  font-family: var(--diagram-font, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif);
+}
+.theme-diagram text { font-family: inherit; }
+</style>
+<defs>
+  <marker id="diagram-3f168937d0-5-ntc-latent-inputs-arrow" viewBox="0 0 10 10" markerWidth="6" markerHeight="6" refX="9" refY="5" orient="auto">
+    <path d="M0 0L10 5L0 10Z" fill="context-stroke"/>
+  </marker>
+</defs>
+<rect width="720" height="364" fill="var(--d-bg)"/>
+
+<!-- Rows are array layers, columns are mip levels; each tile denotes one subresource. -->
+<g font-size="26" fill="var(--d-ink)" text-anchor="middle">
+  <text x="55" y="43">mip</text>
+  <text x="137" y="43">0</text><text x="209" y="43">1</text>
+  <text x="281" y="43">2</text><text x="353" y="43">3</text>
+  <text x="425" y="43">4</text><text x="497" y="43">5</text>
+  <text x="569" y="43">6</text><text x="641" y="43">7</text>
+  <text x="55" y="83">层 0</text><text x="55" y="118">层 1</text>
+  <text x="55" y="153">层 2</text><text x="55" y="188">层 3</text>
+</g>
+<rect x="101" y="58" width="576" height="140" rx="4" fill="var(--d-surface)" stroke="var(--d-border)" stroke-width="2"/>
+<rect x="101" y="58" width="72" height="140" rx="3" fill="color-mix(in srgb, var(--d-blue) 27%, var(--d-bg))" stroke="var(--d-blue)" stroke-width="2"/>
+<rect x="173" y="58" width="72" height="140" rx="3" fill="color-mix(in srgb, var(--d-teal) 27%, var(--d-bg))" stroke="var(--d-teal)" stroke-width="2"/>
+<path d="M317 58v140 M389 58v140 M461 58v140 M533 58v140 M605 58v140 M245 93h432 M245 128h432 M245 163h432"
+      fill="none" stroke="var(--d-border)" stroke-width="2"/>
+<path d="M101 93h72 M101 128h72 M101 163h72" stroke="var(--d-blue)" fill="none" stroke-width="2"/>
+<path d="M173 93h72 M173 128h72 M173 163h72" stroke="var(--d-teal)" fill="none" stroke-width="2"/>
+
+<!-- A four-component lookup in each of the eight selected subresources. -->
+<g fill="var(--d-blue)">
+  <path id="diagram-3f168937d0-5-ntc-latent-inputs-blue-sample" d="M120 71h6v8h-6z M129 71h6v8h-6z M138 71h6v8h-6z M147 71h6v8h-6z"/>
+  <use href="#diagram-3f168937d0-5-ntc-latent-inputs-blue-sample" y="35"/><use href="#diagram-3f168937d0-5-ntc-latent-inputs-blue-sample" y="70"/><use href="#diagram-3f168937d0-5-ntc-latent-inputs-blue-sample" y="105"/>
+</g>
+<g fill="var(--d-teal)">
+  <path id="diagram-3f168937d0-5-ntc-latent-inputs-teal-sample" d="M192 71h6v8h-6z M201 71h6v8h-6z M210 71h6v8h-6z M219 71h6v8h-6z"/>
+  <use href="#diagram-3f168937d0-5-ntc-latent-inputs-teal-sample" y="35"/><use href="#diagram-3f168937d0-5-ntc-latent-inputs-teal-sample" y="70"/><use href="#diagram-3f168937d0-5-ntc-latent-inputs-teal-sample" y="105"/>
+</g>
+<g fill="none" stroke-width="2.8" marker-end="url(#diagram-3f168937d0-5-ntc-latent-inputs-arrow)">
+  <path d="M137 202v49" stroke="var(--d-blue)"/>
+  <path d="M209 202v24h146v25" stroke="var(--d-teal)"/>
+</g>
+
+<!-- 48 input slots. Fine marks in the two latent segments separate array layers. -->
+<g stroke-width="2">
+  <rect x="60" y="260" width="200" height="36" fill="color-mix(in srgb, var(--d-blue) 27%, var(--d-bg))" stroke="var(--d-blue)"/>
+  <rect x="260" y="260" width="200" height="36" fill="color-mix(in srgb, var(--d-teal) 27%, var(--d-bg))" stroke="var(--d-teal)"/>
+  <rect x="460" y="260" width="150" height="36" fill="color-mix(in srgb, var(--d-purple) 25%, var(--d-bg))" stroke="var(--d-purple)"/>
+  <rect x="610" y="260" width="25" height="36" fill="color-mix(in srgb, var(--d-orange) 36%, var(--d-bg))" stroke="var(--d-orange)"/>
+  <rect x="635" y="260" width="25" height="36" fill="var(--d-surface)" stroke="var(--d-muted)" stroke-dasharray="4 2"/>
+  <path d="M110 260v36 M160 260v36 M210 260v36" stroke="var(--d-blue)"/>
+  <path d="M310 260v36 M360 260v36 M410 260v36" stroke="var(--d-teal)"/>
+  <path d="M510 260v36 M560 260v36" stroke="var(--d-purple)"/>
+</g>
+<g fill="var(--d-ink)" font-size="26" text-anchor="middle">
+  <text x="160" y="333">mip 0 特征</text>
+  <text x="360" y="333">mip 1 特征</text>
+  <text x="522" y="333">位置编码</text>
+  <text x="608" y="334">LOD</text>
+  <text x="677" y="334">填充</text>
+</g>
+<path d="M622 297v9l-12 9 M648 297v9l24 9" stroke="var(--d-muted)" stroke-width="1.5" fill="none"/>
+</svg></a></figure>
+
+<p>图中每一列是一个特征 mip。沿 mip 0 那一列往下，shader 在四个数组层各调用一次 <code>SampleLevel</code>，每次取回四个已经插值的分量。mip 1 也读四层，两个尺度合计 <strong>8 次双线性采样</strong>。图根据原技术分享中的特征数组布局重绘。</p>
+<p>一次 <code>SampleLevel</code> 按 RGBA 顺序返回四个分量，shader 用 <code>.bgra</code> 把它们换回表里的特征顺序。UNORM 采样先把 0 到 15 映射到 0 到 1，FP16 输入路径再对插值后的结果做 <code>2v − 1</code>。例如数组层 1 读出的 F4–F7，在较细尺度写入网络输入 4–7，在较粗尺度写入 20–23。四层填完，两个尺度分别占输入 0–15 和 16–31。<a target="_blank" rel="noopener" href="https://github.com/NVIDIA-RTX/RTXNTC-Library/blob/a8dca629c51708273560c08e9df771a496e49011/include/libntc/shaders/InferenceCoopVec.hlsli#L26-L42">采样与通道重排</a></p>
+<p>余下的输入用于区分 texel 的位置和材质 mip。以这份材质的 mip 0 为例，<code>positionScale = 1/8</code>。用前面 A 和 B 的横坐标 2 和 3 算一遍，shader 先除以 8，然后用 <code>2 × frac(p) − 1</code> 把小数部分映射到 [−1, 1)。这样，第一个横向分量在 A 处等于 −0.5，在 B 处等于 −0.25。两点的 y 相同，纵向分量也全部相同。<a target="_blank" rel="noopener" href="https://github.com/NVIDIA-RTX/RTXNTC-Library/blob/a8dca629c51708273560c08e9df771a496e49011/include/libntc/shaders/Inference.hlsli#L91-L122">SDK 位置编码函数</a></p>
+<p>每轮编码都对 x、y 各算两次，一次用原相位，一次偏移 1&#x2F;4 周期。下一轮把坐标加倍，三轮共得到 12 个数。最后把该 mip 的 <code>positionLod</code> 写入两个槽位，末尾两位填零，组成 <code>16 + 16 + 12 + 2 + 2 = 48</code> 维输入。</p>
+<p>这 48 个数经过三个隐藏层，层宽依次为 64、48 和 32。输出层有 16 个通道，<code>GlassPlasticMat</code> 的 <code>textures</code> 字段把 0–2 分给底色 RGB，3–5 分给 ORM（遮蔽、粗糙度、金属度），6–8 分给法线 XYZ。比如要取粗糙度，shader 用同一套权重解码，再读输出通道 4。<a target="_blank" rel="noopener" href="https://github.com/NVIDIA-RTX/RTXNTC-Library/blob/a8dca629c51708273560c08e9df771a496e49011/include/libntc/shaders/InferenceConstants.h">SDK 网络定义</a>、<a target="_blank" rel="noopener" href="https://github.com/NVIDIA-RTX/RTXNTC/blob/1cfa9a514d1b893754df0d343e0dd9cf5a11567d/assets/models/FlightHelmet/GlassPlasticMat.ntc">FlightHelmet 材质文件</a>、<a target="_blank" rel="noopener" href="https://github.com/NVIDIA-RTX/RTXNTC/blob/8311b54b4ae6ff54e488799f18ffd12b40e7742d/docs/TextureSetFile.md#json-descriptor-schema">材质通道描述</a></p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>网络层</th>
+<th align="right">权重数</th>
+<th align="right">偏置数（每个输出通道一个）</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>第一隐藏层</td>
+<td align="right">48 × 64 &#x3D; 3,072</td>
+<td align="right">64</td>
+</tr>
+<tr>
+<td>第二隐藏层</td>
+<td align="right">64 × 48 &#x3D; 3,072</td>
+<td align="right">48</td>
+</tr>
+<tr>
+<td>第三隐藏层</td>
+<td align="right">48 × 32 &#x3D; 1,536</td>
+<td align="right">32</td>
+</tr>
+<tr>
+<td>输出层</td>
+<td align="right">32 × 16 &#x3D; 512</td>
+<td align="right">16</td>
+</tr>
+<tr>
+<td>合计</td>
+<td align="right">8,192</td>
+<td align="right">160</td>
+</tr>
+</tbody></table></div>
+<h3 id="硬件加速结构"><a href="#硬件加速结构" class="headerlink" title="硬件加速结构"></a>硬件加速结构</h3><p><strong>RTXNTC 可以用 RTX 显卡上的 Tensor Core 加速纹理解码。</strong> Tensor Core 是为神经网络等负载提供矩阵乘加的专用计算单元。材质 shader 先用纹理单元对特征网格做双线性采样，再把特征、位置编码和 mip 信息拼成输入向量。解码器通过 Cooperative Vector 把 MLP 四层的矩阵乘加交给 Tensor Core，三个隐藏层的 HGELU 则由 shader 在各层乘加后逐分量计算。<a target="_blank" rel="noopener" href="https://github.com/NVIDIA-RTX/RTXNTC-Library/blob/a8dca629c51708273560c08e9df771a496e49011/include/libntc/shaders/InferenceCoopVec.hlsli#L215-L353">RTXNTC 的 MLP 实现</a></p>
+<p>以 FlightHelmet 的第一层为例，每个线程用自己的 48 维输入算出 64 个隐藏层分量。同一 warp 的 32 个线程都在解码同一材质时，Cooperative Vector 可以把 32 份输入视作一个 <code>32 × 48</code> 矩阵，交给 Tensor Core 与共享的 <code>48 × 64</code> 权重矩阵相乘。结果的每一行都对应一个线程的 texel。shader 按线程提交向量和权重地址，warp 内有不同材质或部分线程未激活时也能执行。整个 warp 都活跃且共用权重时，Tensor Core 的利用率更高。<a target="_blank" rel="noopener" href="https://developer.nvidia.com/blog/neural-rendering-in-nvidia-optix-using-cooperative-vectors/#why_cooperative_vectors">NVIDIA 的 Cooperative Vector 执行说明</a></p>
+<p>RTX 40 系列（Ada）和 RTX 50 系列（Blackwell）可运行这条硬件加速路径。Vulkan 使用 <code>VK_NV_cooperative_vector</code>，本文所用 SDK 的 D3D12 路径使用 LinAlg，依赖预览版 Agility SDK、支持该功能的显卡驱动和 Windows 开发者模式。NVIDIA 将这条 D3D12 路径限定为测试用途。Cooperative Vector 不可用时，SDK 可用 <code>DP4a</code> 或普通整数运算执行全 INT8 解码，采样时推理的吞吐会下降。<a target="_blank" rel="noopener" href="https://github.com/NVIDIA-RTX/RTXNTC/blob/8311b54b4ae6ff54e488799f18ffd12b40e7742d/README.md#cooperative-vector-and-inference">SDK 推理接口与回退路径</a></p>
+<h3 id="两套低精度权重怎样训练"><a href="#两套低精度权重怎样训练" class="headerlink" title="两套低精度权重怎样训练"></a>两套低精度权重怎样训练</h3><p>SDK 可以为同一套特征准备混合 FP8 和全 INT8 两种解码器权重。训练达到总步数的 95% 时，特征网格量化并冻结。到 96% 时，压缩器复制一份量化前的网络权重，再用接下来约 2% 的步数细调混合 FP8 版本。超过 98% 后切换到先前留出的副本，细调全 INT8 版本。两条推理路径各自适应量化误差，共享已经冻结的特征纹理。<a target="_blank" rel="noopener" href="https://github.com/NVIDIA-RTX/RTXNTC-Library/blob/a8dca629c51708273560c08e9df771a496e49011/src/TextureSet.cpp#L1366-L1428">RTXNTC 训练循环</a></p>
+<figure class="theme-svg-figure theme-svg-figure--asset"><a class="theme-svg-link" href="&#x2F;2026&#x2F;05&#x2F;21&#x2F;NeuralTextureCompression&#x2F;ntc-quantized-weights.svg" target="_blank" rel="noopener" aria-label="训练最后百分之五的步数中，混合 FP8 与全 INT8 权重从同一份权重分支细调"><svg style="--diagram-background:var(--color-background, #222426);--diagram-text:var(--color-text, #e6e4e0);--diagram-accent:var(--color-accent-1, #f3b958);--diagram-teal:var(--color-diagram-teal, #4bc292);--diagram-blue:var(--color-diagram-blue, #009dff);--diagram-purple:var(--color-diagram-purple, #8867a5);--diagram-orange:var(--color-diagram-orange, #f3b958)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 277"
+     class="theme-diagram" data-theme-svg="1" role="img"
+     aria-labelledby="diagram-1185acc90d-6-ntc-quantized-weights-title diagram-1185acc90d-6-ntc-quantized-weights-desc">
+<title id="diagram-1185acc90d-6-ntc-quantized-weights-title">训练末段的特征网格与两份解码器权重</title>
+<desc id="diagram-1185acc90d-6-ntc-quantized-weights-desc">横轴从全部训练步数的百分之九十五到百分之一百。特征首先冻结。网络权重在百分之九十六处分出一个副本，随后细调混合 FP8 权重，最后百分之二的步数转去细调全 INT8 副本。实心带表示更新，虚线表示保留。</desc>
+<style>
+.theme-diagram {
+  --d-bg: var(--diagram-background, #ffffff);
+  --d-ink: var(--diagram-text, #383838);
+  --d-accent: var(--diagram-accent, #2bbc8a);
+  --d-muted: color-mix(in srgb, var(--d-ink) 68%, var(--d-bg));
+  --d-border: color-mix(in srgb, var(--d-ink) 19%, var(--d-bg));
+  --d-surface: color-mix(in srgb, var(--d-ink) 3%, var(--d-bg));
+  --d-shadow: color-mix(in srgb, #000000 35%, var(--d-bg));
+  --d-teal: var(--diagram-teal, color-mix(in srgb, var(--d-accent) 76%, var(--d-ink)));
+  --d-blue: var(--diagram-blue, color-mix(in srgb, var(--d-accent) 28%, #6c91bc));
+  --d-purple: var(--diagram-purple, color-mix(in srgb, var(--d-accent) 15%, #a18ab9));
+  --d-orange: var(--diagram-orange, color-mix(in srgb, var(--d-accent) 10%, #d3a462));
+  font-family: var(--diagram-font, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif);
+}
+.theme-diagram text { font-family: inherit; }
+</style>
+<rect width="720" height="277" fill="var(--d-bg)"/>
+
+<g fill="none" stroke="var(--d-border)" stroke-width="2">
+  <path d="M192 36v199 M288 36v199 M480 36v199 M672 36v199"/>
+</g>
+<g fill="var(--d-ink)" font-size="26">
+  <text x="27" y="66">特征网格</text>
+  <text x="27" y="128">混合 FP8</text>
+  <text x="27" y="197">全 INT8</text>
+  <text x="27" y="258">训练进度</text>
+</g>
+
+<!-- The grid stays frozen across the whole interval. -->
+<rect x="183" y="49" width="18" height="18" rx="2" fill="var(--d-teal)"/>
+<path d="M205 58h467" fill="none" stroke="var(--d-teal)" stroke-width="4" stroke-dasharray="7 6"/>
+
+<!-- One full-precision state at 96%, two separately refined copies. -->
+<path d="M193 151h95" fill="none" stroke="var(--d-muted)" stroke-width="13"/>
+<circle cx="288" cy="151" r="8" fill="var(--d-ink)"/>
+<path d="M288 144v-25h12 M288 158v30h12" fill="none" stroke="var(--d-ink)" stroke-width="2.8"/>
+<rect x="297" y="112" width="183" height="14" rx="3" fill="var(--d-purple)"/>
+<path d="M482 119h190" fill="none" stroke="var(--d-purple)" stroke-width="4" stroke-dasharray="7 6"/>
+<path d="M298 188h181" fill="none" stroke="var(--d-orange)" stroke-width="4" stroke-dasharray="7 6"/>
+<rect x="480" y="181" width="192" height="14" rx="3" fill="var(--d-orange)"/>
+<g fill="var(--d-bg)" stroke-width="3">
+  <circle cx="672" cy="119" r="5" stroke="var(--d-purple)"/>
+  <circle cx="672" cy="188" r="5" stroke="var(--d-orange)"/>
+</g>
+
+<path d="M192 227h480 M192 227v6 M288 227v6 M480 227v6 M672 227v6" fill="none" stroke="var(--d-muted)" stroke-width="2"/>
+<g fill="var(--d-ink)" font-size="25" text-anchor="middle">
+  <text x="192" y="258">95%</text><text x="288" y="258">96%</text>
+  <text x="480" y="258">98%</text><text x="672" y="258">100%</text>
+</g>
+</svg></a></figure>
+
+<p>图据原分享的量化调度图和 SDK 源码重绘。色带标出最后 5% 的训练步数中正在更新的权重，虚线标出保留原值的阶段。</p>
+<h3 id="分开处理磁盘压缩与-GPU-访问"><a href="#分开处理磁盘压缩与-GPU-访问" class="headerlink" title="分开处理磁盘压缩与 GPU 访问"></a>分开处理磁盘压缩与 GPU 访问</h3><p>SDK 将一套材质打包成 <code>.ntc</code> 文件。开头是 <strong>40 字节的文件头</strong>，包括 4 字节的 <code>NTEX</code> 签名、4 字节版本号，以及 JSON 块和二进制数据块各自的偏移与长度。后四个字段各占 8 字节。读取器先定位 JSON，再按其中的 <code>views</code> 索引数据块。每个 view 的偏移从二进制数据块的起点计算。<a target="_blank" rel="noopener" href="https://github.com/NVIDIA-RTX/RTXNTC/blob/8311b54b4ae6ff54e488799f18ffd12b40e7742d/docs/TextureSetFile.md">容器格式</a>、<a target="_blank" rel="noopener" href="https://github.com/NVIDIA-RTX/RTXNTC-Library/blob/a8dca629c51708273560c08e9df771a496e49011/src/JsonFileFormat.h#L25-L58">FileHeader 与 BufferView 定义</a></p>
+<figure class="theme-svg-figure theme-svg-figure--asset"><a class="theme-svg-link" href="&#x2F;2026&#x2F;05&#x2F;21&#x2F;NeuralTextureCompression&#x2F;ntc-container-views.svg" target="_blank" rel="noopener" aria-label="JSON 的两种索引如何定位特征数组层和解码器权重"><svg style="--diagram-background:var(--color-background, #222426);--diagram-text:var(--color-text, #e6e4e0);--diagram-accent:var(--color-accent-1, #f3b958);--diagram-teal:var(--color-diagram-teal, #4bc292);--diagram-blue:var(--color-diagram-blue, #009dff);--diagram-purple:var(--color-diagram-purple, #8867a5);--diagram-orange:var(--color-diagram-orange, #f3b958)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 270"
+     class="theme-diagram" data-theme-svg="1" role="img"
+     aria-labelledby="diagram-300959b160-7-ntc-container-views-title diagram-300959b160-7-ntc-container-views-desc">
+<title id="diagram-300959b160-7-ntc-container-views-title">NTC 容器内的索引与数据</title>
+<desc id="diagram-300959b160-7-ntc-container-views-desc">文件头记录 JSON 描述块和二进制数据块的位置。箭头从一个特征数组层和一个网络层出发，经 JSON 的视图索引，分别指向二进制块里的两段数据。</desc>
+<style>
+.theme-diagram {
+  --d-bg: var(--diagram-background, #ffffff);
+  --d-ink: var(--diagram-text, #383838);
+  --d-accent: var(--diagram-accent, #2bbc8a);
+  --d-muted: color-mix(in srgb, var(--d-ink) 68%, var(--d-bg));
+  --d-border: color-mix(in srgb, var(--d-ink) 19%, var(--d-bg));
+  --d-surface: color-mix(in srgb, var(--d-ink) 3%, var(--d-bg));
+  --d-shadow: color-mix(in srgb, #000000 35%, var(--d-bg));
+  --d-teal: var(--diagram-teal, color-mix(in srgb, var(--d-accent) 76%, var(--d-ink)));
+  --d-blue: var(--diagram-blue, color-mix(in srgb, var(--d-accent) 28%, #6c91bc));
+  --d-purple: var(--diagram-purple, color-mix(in srgb, var(--d-accent) 15%, #a18ab9));
+  --d-orange: var(--diagram-orange, color-mix(in srgb, var(--d-accent) 10%, #d3a462));
+  font-family: var(--diagram-font, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif);
+}
+.theme-diagram text { font-family: inherit; }
+</style>
+<defs>
+  <marker id="diagram-300959b160-7-ntc-container-views-arrow" viewBox="0 0 10 10" markerWidth="6" markerHeight="6" refX="9" refY="5" orient="auto">
+    <path d="M0 0L10 5L0 10Z" fill="context-stroke"/>
+  </marker>
+</defs>
+<rect width="720" height="270" fill="var(--d-bg)"/>
+
+<!-- The file's two address spaces: file-relative chunks and data-chunk-relative views. -->
+<rect x="27" y="25" width="666" height="53" rx="5" fill="var(--d-surface)" stroke="var(--d-muted)" stroke-width="2"/>
+<path d="M122 25v53 M397 25v53" stroke="var(--d-muted)" stroke-width="2"/>
+<g fill="var(--d-ink)" font-size="26" text-anchor="middle">
+  <text x="75" y="59">文件头</text>
+  <text x="259" y="59">JSON 描述块</text>
+  <text x="544" y="59">二进制数据块</text>
+</g>
+<path d="M259 80v17h-90v22 M259 97h63v22 M544 80v20"
+      fill="none" stroke="var(--d-border)" stroke-width="2"/>
+
+<!-- Two records select views in the JSON index. Each view resolves a byte range. -->
+<g fill="none" stroke-width="2">
+  <rect x="271" y="127" width="105" height="44" rx="5" fill="var(--d-surface)" stroke="var(--d-teal)"/>
+  <rect x="271" y="194" width="105" height="44" rx="5" fill="var(--d-surface)" stroke="var(--d-purple)"/>
+  <rect x="453" y="105" width="235" height="149" rx="4" fill="var(--d-surface)" stroke="var(--d-muted)"/>
+  <rect x="453" y="132" width="235" height="34" fill="color-mix(in srgb, var(--d-teal) 28%, var(--d-bg))" stroke="var(--d-teal)"/>
+  <rect x="453" y="200" width="235" height="32" fill="color-mix(in srgb, var(--d-purple) 27%, var(--d-bg))" stroke="var(--d-purple)"/>
+</g>
+<g fill="none" stroke-width="2.6" marker-end="url(#diagram-300959b160-7-ntc-container-views-arrow)">
+  <path d="M226 149h36" stroke="var(--d-teal)"/>
+  <path d="M380 149h67" stroke="var(--d-teal)"/>
+  <path d="M226 216h36" stroke="var(--d-purple)"/>
+  <path d="M380 216h67" stroke="var(--d-purple)"/>
+</g>
+<g fill="var(--d-ink)" font-size="26" text-anchor="middle">
+  <text x="147" y="156">layerViews[i]</text>
+  <text x="147" y="223">weightView</text>
+  <text x="324" y="156">views[a]</text>
+  <text x="324" y="223">views[b]</text>
+  <text x="570" y="157">特征层数据</text>
+  <text x="570" y="224">矩阵权重</text>
+</g>
+</svg></a></figure>
+
+<p>图据原分享的压缩产物图和 SDK 文件格式重绘。特征 mip 的 <code>layerViews</code> 为每个数组层指定一段字节，解码器的 <code>weightView</code> 指向某层矩阵的权重。<code>textures</code> 记录每张材质贴图的起始输出通道和通道数，着色器据此从同一组结果中取出底色、法线等属性。<a target="_blank" rel="noopener" href="https://github.com/NVIDIA-RTX/RTXNTC/blob/8311b54b4ae6ff54e488799f18ffd12b40e7742d/docs/TextureSetFile.md#json-descriptor-schema">JSON 字段说明</a></p>
+<p>原论文使用定长特征，可以按偏移直接寻址。SDK 还可用 GDeflate 压缩单个特征数组层，减少文件大小和传输量。压缩过的 view 同时记录存储长度和解压长度，加载时据此把数据还原成 BGRA4 纹理，供 shader 采样。<a target="_blank" rel="noopener" href="https://github.com/NVIDIA-RTX/RTXNTC/blob/8311b54b4ae6ff54e488799f18ffd12b40e7742d/ChangeLog.md">SDK 更新记录</a></p>
+<h2 id="神经纹理压缩的使用策略"><a href="#神经纹理压缩的使用策略" class="headerlink" title="神经纹理压缩的使用策略"></a>神经纹理压缩的使用策略</h2><img loading="lazy" decoding="async" src="/2026/05/21/NeuralTextureCompression/intel-tsnc-deployment-strategy.jpg" class="" title="Intel 的神经纹理压缩部署策略" alt="对比安装、加载、流送和采样阶段解码时，游戏包、磁盘和运行时内存中的纹理格式">
+
+<p>Intel 的《Texture Set Neural Compression》第 8 页对比了不同解码时机。看加载和采样这两行，游戏包都保存神经压缩数据，区别在于运行时显存中保留的是 BCn 纹理还是神经压缩数据。<a target="_blank" rel="noopener" href="https://www.youtube.com/watch?v=3w4hEgCR2vE">Intel 原始分享</a>、<a target="_blank" rel="noopener" href="https://www.tweaktown.com/news/110888/intels-texture-set-neural-compression-will-also-save-big-on-vram-usage-when-gaming/index.html">截图来源</a></p>
+<p>RTXNTC SDK 提供了这两种接入方式。</p>
+<ul>
+<li><strong>采样时解码（Inference on Sample）</strong>。显存里保留压缩特征和解码器权重，材质 shader 在采样时运行 MLP，换取更低的纹理显存占用。<a target="_blank" rel="noopener" href="https://github.com/NVIDIA-RTX/RTXNTC/blob/8311b54b4ae6ff54e488799f18ffd12b40e7742d/docs/integration/InferenceOnSample.md">SDK 采样时解码</a></li>
+<li><strong>加载时转码（Inference on Load）</strong>。游戏包里存 <code>.ntc</code>，引擎可在异步加载阶段解码并转成 BCn 纹理。渲染时沿用硬件采样，包体可以缩小，常驻显存按 BCn 计算。<a target="_blank" rel="noopener" href="https://github.com/NVIDIA-RTX/RTXNTC/blob/8311b54b4ae6ff54e488799f18ffd12b40e7742d/docs/integration/InferenceOnLoad.md">SDK 加载时解码</a></li>
+</ul>
+<h2 id="使用-BC-特征纹理"><a href="#使用-BC-特征纹理" class="headerlink" title="使用 BC 特征纹理"></a>使用 BC 特征纹理</h2><p>上一节的 RTXNTC 在加载时把解码后的材质通道转成 BCn。Ubisoft La Forge 的 Weinreich 等人直接把 BC 用在了解码器的输入端。每张特征纹理的 R、G、B 各装一个学出来的数。硬件照常采样，shader 把这三个数和其他特征纹理的采样结果交给同一个 MLP，再由它还原底色、法线和粗糙度。Ubisoft 在 2024 年的论文中用了 BC6H，Intel 的 Belcour 和 Benyoub 在 2025 年把这个做法用到了 BC1。<a target="_blank" rel="noopener" href="https://doi.org/10.1111/cgf.15013">Real-Time Neural Materials using Block-Compressed Features</a>、<a target="_blank" rel="noopener" href="https://arxiv.org/html/2506.06040v1#S3">Hardware Accelerated Neural Block Texture Compression with Cooperative Vectors</a></p>
+<h3 id="直接训练-BC1-特征纹理"><a href="#直接训练-BC1-特征纹理" class="headerlink" title="直接训练 BC1 特征纹理"></a>直接训练 BC1 特征纹理</h3><p><strong>Intel 从训练的第一步就按 BC1 的规则学习特征纹理。</strong> 优化变量有两组。一组是特征纹理各级 mip 的块参数，每个 <code>4 × 4</code> 块有两个可训练的浮点端点，每个 texel 各有一个浮点插值系数。另一组是材质解码器的 MLP 权重。<a target="_blank" rel="noopener" href="https://arxiv.org/html/2506.06040v1#S3">Intel 论文第 3.1–3.2 节</a></p>
+<figure class="theme-svg-figure theme-svg-figure--asset"><a class="theme-svg-link" href="&#x2F;2026&#x2F;05&#x2F;21&#x2F;NeuralTextureCompression&#x2F;bc1-feature-training.svg" target="_blank" rel="noopener" aria-label="BC1 量化参与前向计算，材质重建误差回传到块参数和网络权重"><svg style="--diagram-background:var(--color-background, #222426);--diagram-text:var(--color-text, #e6e4e0);--diagram-accent:var(--color-accent-1, #f3b958);--diagram-teal:var(--color-diagram-teal, #4bc292);--diagram-blue:var(--color-diagram-blue, #009dff);--diagram-purple:var(--color-diagram-purple, #8867a5);--diagram-orange:var(--color-diagram-orange, #f3b958)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 372"
+     class="theme-diagram" data-theme-svg="1" role="img"
+     aria-labelledby="diagram-143557f083-8-bc1-feature-training-title diagram-143557f083-8-bc1-feature-training-desc">
+<title id="diagram-143557f083-8-bc1-feature-training-title">BC1 特征纹理与解码器的联合训练</title>
+<desc id="diagram-143557f083-8-bc1-feature-training-desc">浮点块参数经 BC1 量化，模拟纹理单元解码和过滤，四张纹理的采样结果拼成十二维向量输入 MLP。预测材质与参考材质的重建误差沿虚线回传，更新网络权重和浮点块参数。</desc>
+<style>
+.theme-diagram {
+  --d-bg: var(--diagram-background, #ffffff);
+  --d-ink: var(--diagram-text, #383838);
+  --d-accent: var(--diagram-accent, #2bbc8a);
+  --d-muted: color-mix(in srgb, var(--d-ink) 68%, var(--d-bg));
+  --d-border: color-mix(in srgb, var(--d-ink) 19%, var(--d-bg));
+  --d-surface: color-mix(in srgb, var(--d-ink) 3%, var(--d-bg));
+  --d-shadow: color-mix(in srgb, #000000 35%, var(--d-bg));
+  --d-teal: var(--diagram-teal, color-mix(in srgb, var(--d-accent) 76%, var(--d-ink)));
+  --d-blue: var(--diagram-blue, color-mix(in srgb, var(--d-accent) 28%, #6c91bc));
+  --d-purple: var(--diagram-purple, color-mix(in srgb, var(--d-accent) 15%, #a18ab9));
+  --d-orange: var(--diagram-orange, color-mix(in srgb, var(--d-accent) 10%, #d3a462));
+  font-family: var(--diagram-font, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif);
+}
+.theme-diagram text { font-family: inherit; }
+</style>
+<defs>
+  <marker id="diagram-143557f083-8-bc1-feature-training-arrow" viewBox="0 0 10 10" markerWidth="5" markerHeight="5" refX="9" refY="5" orient="auto">
+    <path d="M0 0L10 5L0 10Z" fill="context-stroke"/>
+  </marker>
+</defs>
+<rect width="620" height="372" fill="var(--d-bg)"/>
+
+<!-- Forward values from one block, shown before and after quantization. -->
+<g fill="var(--d-ink)" font-size="23" text-anchor="middle" dominant-baseline="central">
+  <text x="112" y="30">浮点块参数</text>
+  <text x="310" y="30">量化端点与索引</text>
+  <text x="508" y="30">模拟采样器</text>
+</g>
+<g fill="var(--d-surface)" stroke-width="2.5">
+  <rect x="42" y="52" width="140" height="48" rx="6" stroke="var(--d-orange)"/>
+  <rect x="238" y="52" width="144" height="48" rx="6" stroke="var(--d-teal)"/>
+  <rect x="455" y="51" width="106" height="50" rx="4" stroke="var(--d-blue)"/>
+</g>
+<g stroke-width="2" fill="none">
+  <path d="M87 52v48 M132 52v48" stroke="var(--d-orange)"/>
+  <path d="M274 52v48 M310 52v48" stroke="var(--d-teal)"/>
+  <path d="M481.5 51v50 M508 51v50 M534.5 51v50 M455 76h106" stroke="var(--d-border)"/>
+</g>
+<g fill="var(--d-ink)" font-size="21" text-anchor="middle" dominant-baseline="central">
+  <text x="65" y="76">A</text><text x="110" y="76">B</text><text x="157" y="76">α</text>
+</g>
+<g fill="var(--d-teal)">
+  <rect x="248" y="66" width="16" height="20" rx="2"/>
+  <rect x="284" y="66" width="16" height="20" rx="2"/>
+  <path d="M319 62h9v5h-9z M333 62h9v5h-9z M347 62h9v5h-9z M361 62h9v5h-9z
+           M319 70h9v5h-9z M333 70h9v5h-9z M347 70h9v5h-9z M361 70h9v5h-9z
+           M319 78h9v5h-9z M333 78h9v5h-9z M347 78h9v5h-9z M361 78h9v5h-9z
+           M319 86h9v5h-9z M333 86h9v5h-9z M347 86h9v5h-9z M361 86h9v5h-9z"/>
+</g>
+<circle cx="508" cy="76" r="13" fill="color-mix(in srgb, var(--d-blue) 26%, var(--d-bg))" stroke="var(--d-blue)" stroke-width="2"/>
+<g stroke="var(--d-muted)" stroke-width="2.5" fill="none" marker-end="url(#diagram-143557f083-8-bc1-feature-training-arrow)">
+  <path d="M189 76h42"/>
+  <path d="M389 76h59"/>
+  <path d="M508 108v13"/>
+  <path d="M508 147v17"/>
+  <path d="M381 192h68"/>
+  <path d="M508 216v39"/>
+  <path d="M187 284h63"/>
+  <path d="M433 284h-63"/>
+</g>
+<path d="M502 133h-50 M514 133h49" fill="none" stroke="var(--d-border)" stroke-width="1.5"/>
+<g>
+  <path d="M452 129h6v9h-6z M460 129h6v9h-6z M468 129h6v9h-6z" fill="var(--d-teal)"/>
+  <path d="M482 129h6v9h-6z M490 129h6v9h-6z M498 129h6v9h-6z" fill="var(--d-blue)"/>
+  <path d="M512 129h6v9h-6z M520 129h6v9h-6z M528 129h6v9h-6z" fill="var(--d-purple)"/>
+  <path d="M542 129h6v9h-6z M550 129h6v9h-6z M558 129h6v9h-6z" fill="var(--d-orange)"/>
+</g>
+
+<!-- The reconstruction loss takes material values from both branches. -->
+<g stroke-width="2" fill="var(--d-surface)">
+  <rect x="244" y="171" width="130" height="42" rx="6" stroke="var(--d-purple)"/>
+  <rect x="457" y="171" width="102" height="42" rx="6" stroke="var(--d-purple)"/>
+  <rect x="437" y="262" width="142" height="44" rx="6" stroke="var(--d-blue)"/>
+  <rect x="255" y="262" width="110" height="44" rx="6" stroke="var(--d-orange)"/>
+  <rect x="40" y="262" width="142" height="44" rx="6" stroke="var(--d-blue)"/>
+</g>
+<g fill="var(--d-ink)" font-size="23" text-anchor="middle" dominant-baseline="central">
+  <text x="309" y="192">网络权重</text>
+  <text x="508" y="192">MLP</text>
+  <text x="111" y="284">参考材质</text>
+  <text x="310" y="284">L1 误差</text>
+  <text x="508" y="284">预测材质</text>
+</g>
+
+<!-- Gradients update the two sets of trainable parameters. -->
+<g fill="none" stroke="var(--d-orange)" stroke-width="2.5" stroke-dasharray="6 5">
+  <path d="M310 311v28H23V76h13" marker-end="url(#diagram-143557f083-8-bc1-feature-training-arrow)"/>
+  <path d="M310 256v-36" marker-end="url(#diagram-143557f083-8-bc1-feature-training-arrow)"/>
+</g>
+<text x="150" y="354" fill="var(--d-ink)" font-size="22" text-anchor="middle" dominant-baseline="central">梯度</text>
+</svg></a></figure>
+
+<p><strong>前向计算</strong>先把端点量化成 RGB565，把插值系数限制在 2 bit 能表示的四档。接着模拟 BC1 的解码和过滤，把采出的特征送进 MLP，由它预测底色、法线、粗糙度等通道。用同一 UV 和 LOD 对原始 PBR 贴图做三线性采样，得到参考值，再和预测值计算 L1 误差。<a target="_blank" rel="noopener" href="https://arxiv.org/html/2506.06040v1#S3.SS2">Intel 论文第 3.2 节</a></p>
+<p><strong>反向传播</strong>用这份误差同时更新 MLP 权重和参与采样的块参数。前向用量化值模拟运行时的输入，反向让梯度穿过量化步骤，更新量化前的浮点端点和插值系数。这样 MLP 从第一步起就用受 BC1 精度限制的特征学习重建材质。<a target="_blank" rel="noopener" href="https://arxiv.org/html/2506.06040v1#S3.SS2">Intel 论文第 3.2 节</a></p>
+<p>训练结束后，量化的端点和索引直接打包成标准 BC1 特征纹理，MLP 权重单独保存。渲染时，纹理单元解压并过滤四张 BC1 特征纹理，把采到的 12 个分量交给 MLP 重建材质。<a target="_blank" rel="noopener" href="https://arxiv.org/html/2506.06040v1#S4">Intel 的采样与推理</a></p>
+<h3 id="BC6H"><a href="#BC6H" class="headerlink" title="BC6H"></a>BC6H</h3><p>BC6H 和 BC1 都由纹理单元解压和过滤，MLP 接收的是采样后的三分量特征。两种格式的差异在于每个块能表示的特征值，以及这些块占多少显存。<a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/uwp/graphics-concepts/opaque-and-1-bit-alpha-textures">微软 BC1 格式</a>、<a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/direct3d11/bc6h-format">微软 BC6H 格式</a></p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>比较项</th>
+<th>BC1 四色模式</th>
+<th>育碧论文采用的 BC6H 双分区模式</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>每个 <code>4 × 4</code> 块</td>
+<td>8 字节，4 bit&#x2F;texel</td>
+<td>16 字节，8 bit&#x2F;texel</td>
+</tr>
+<tr>
+<td>块内端点</td>
+<td>16 个 texel 共用一对 RGB565 端点</td>
+<td>按分区将 texel 分成两组，每组各用一对端点</td>
+</tr>
+<tr>
+<td>解码后的特征</td>
+<td>三个归一化分量，范围为 [0, 1]</td>
+<td>三个浮点分量，支持更宽的动态范围</td>
+</tr>
+</tbody></table></div>
+<img loading="lazy" decoding="async" src="/2026/05/21/NeuralTextureCompression/bcf-block-training.png" class="" title="育碧论文中的 BC6H 双分区块" alt="每块保存两对端点和 texel 索引，分区编号决定每个 texel 用哪对端点">
+
+<p>BC1 的 16 个 texel 共用同一条线段上的四个候选值。BC6H 可以用两条线段拟合块内两组不同的三维特征。上图取自 Weinreich 等人的育碧论文图 4。<code>l₁</code>、<code>l₂</code> 是两对端点，<code>P</code> 中的 19、31、17 是分区编号。多一组端点也多了一个训练时要处理的离散选择。育碧先用 BC6H 编码器选好各块的分区，后续训练固定分区，再用反向传播优化端点、索引参数和 MLP 权重。<a target="_blank" rel="noopener" href="https://arxiv.org/html/2311.16121v2#S5.SS1">育碧论文第 5.1 节</a></p>
+<p>用 BC1 省下的空间可以留给更多特征 texel。Intel 在 Polyhaven 的 4K 材质上比较了自己实现的 BC6H 基线和两套 BC1 配置。</p>
+<img loading="lazy" decoding="async" src="/2026/05/21/NeuralTextureCompression/intel-bcf1-quality-variants.png" class="" title="Intel 的 BC1 配置画质对比" alt="前两列是参考贴图和放大细节，后两列是 VarA 和 VarB 的重建">
+
+<p>VarB 进一步降低了部分特征纹理的分辨率。看最右一列，压缩率更高，块状伪影也比 VarA 更明显。图裁自 Belcour 和 Benyoub 的 Intel 论文 PDF 图 2。</p>
+<img loading="lazy" decoding="async" src="/2026/05/21/NeuralTextureCompression/intel-bcf-rate-distortion.png" class="" title="BC1 与 BC6H 特征纹理的压缩率和重建质量" alt="横轴为压缩率，纵轴为 PSNR，图中包含两种 BC1 配置和 BC6H 基线">
+
+<p>VarA 用 BC1 搭配不同分辨率的特征纹理，重建质量与 BC6H 基线接近，压缩率略高。图裁自 Belcour 和 Benyoub 的 Intel 论文 PDF 图 5。</p>
+<h3 id="《刺客信条-幻景》的特征纹理"><a href="#《刺客信条-幻景》的特征纹理" class="headerlink" title="《刺客信条 幻景》的特征纹理"></a>《刺客信条 幻景》的特征纹理</h3><img loading="lazy" decoding="async" src="/2026/05/21/NeuralTextureCompression/ubisoft-mirage-feature-textures.png" class="" title="《刺客信条 幻景》的特征纹理与解码器权重" alt="shader 接口里的 neuralMap1、neuralMap2、neuralMap3 各提供一个 float3，neuralWeights 单独保存网络权重。">
+
+<p>育碧在 2026 年公开了《刺客信条 幻景》的做法。看图中间的 shader 接口，<code>neuralMap1</code>、<code>neuralMap2</code> 和 <code>neuralMap3</code> 是从三张 BC1 特征纹理各采出的一个 <code>float3</code>。解码器从这 9 个特征值重建材质，权重单独存在 <code>neuralWeights</code> 纹理里。图取自 Ubisoft La Forge 的技术分享图 3。</p>
+<p>团队采用了 Intel 验证过的 BC1，把特征纹理接入引擎已有的 mip 选择和纹理流送系统。他们优先选用实例数量多、纹理内存压力大的资产，展示的案例节省了约 30% 的纹理内存。<a target="_blank" rel="noopener" href="https://www.ubisoft.com/en-us/studio/laforge/news/415slmB3ZGzv8d2LhO9QT/shipping-neural-texture-compression-in-assassins-creed-mirage">Ubisoft 的游戏实践</a></p>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>游戏对画面细节的要求越来越高，高分辨率材质既占硬盘也吃显存。神经纹理压缩能缩小磁盘上的材质数据，渲染时只把压缩特征和网络权重留在显存里，也能大幅降低纹理的显存占用。采样时多出来的 MLP 计算，可以用 GPU 上的矩阵运算单元加速。显卡和存储硬件越贵，这种用算力换空间的做法就越有吸引力，这也是后续的一种发展趋势。</p>
+<p>如果材质解码器逐渐收敛到几种常用的网络结构，未来的 GPU 或许会像今天支持 BCn 那样，对神经网络结构进行标准化，这些小网络直接做进纹理采样单元。每套材质仍提供自己训练出的特征网格和权重，shader 给出 UV 和 LOD，就能从硬件取回对应的材质通道。</p>
+<p>本文原创内容采用 CC BY-NC 4.0 许可。引用图片的版权归原权利人，来源见各图图注。NVIDIA NTC 论文图 3、6、11、12 和 Intel BCF1 论文 PDF 图 2、5 的截图仅裁去周围版面，按原论文的 CC BY-SA 4.0 许可使用。<a target="_blank" rel="noopener" href="https://arxiv.org/abs/2305.17105">NVIDIA NTC 论文</a>、<a target="_blank" rel="noopener" href="https://arxiv.org/abs/2506.06040v1">Intel BCF1 论文</a>、<a target="_blank" rel="noopener" href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a></p>
+
+      </div>
+      
+        <p class="post-license">
+          <span data-ui-lang="zh-CN">本文采用</span><span data-ui-lang="en">Licensed under</span>
+          <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="license noopener">CC BY-NC 4.0</a>
+          <span data-ui-lang="zh-CN">许可</span><span data-ui-lang="en"></span>
+        </p>
+      
+    </div>
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a class="chip px" href="/tags/NTC/">#NTC</a>
+          
+            <a class="chip px" href="/tags/Neural-Rendering/">#Neural Rendering</a>
+          
+            <a class="chip px" href="/tags/Texture-Compression/">#Texture Compression</a>
+          
+        </div>
+      
+      
+      <nav class="post-nav" data-i18n-aria-label="post.navigation" aria-label="文章导航">
+        
+          <a class="post-nav__item post-nav__prev card" data-tilt href="/2026/06/18/renderdoc-graph-viewer/">
+            <span class="card__inner">
+              <span class="post-nav__label px"><span data-ui-lang="zh-CN">上一篇</span><span data-ui-lang="en">Newer</span> · 2026-06-18</span>
+              <span class="post-nav__title">RenderDoc Graph Viewer 插件介绍</span>
+              <span class="card__foil" aria-hidden="true"></span>
+            </span>
+          </a>
+        
+        
+          <a class="post-nav__item post-nav__next card" data-tilt href="/2025/12/20/VulkanMemoryAllocator/">
+            <span class="card__inner">
+              <span class="post-nav__label px"><span data-ui-lang="zh-CN">下一篇</span><span data-ui-lang="en">Older</span> · 2025-12-20</span>
+              <span class="post-nav__title">Vulkan Memory Allocator 笔记</span>
+              <span class="card__foil" aria-hidden="true"></span>
+            </span>
+          </a>
+        
+      </nav>
+      
+    </footer>
+
+    
+
+<section class="comments panel" id="comments"
+  data-repo="FrostyLeaves/frostyleaves.github.io"
+  data-issue-term="og:title"
+  data-label="utterances"></section>
+
+
+  </div>
+
+  
+  <aside class="post-aside">
+    
+
+<nav class="reading-rail" data-i18n-aria-label="post.toc" aria-label="目录">
+  <div class="reading-rail__head px">
+    <span><span data-ui-lang="zh-CN">目录</span><span data-ui-lang="en">Contents</span></span>
+    <span class="reading-rail__percent" data-reading-percent aria-hidden="true">000%</span>
+  </div>
+  <div class="reading-rail__stage">
+    <div class="reading-rail__chapters"><ol class="toc-list"><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E4%B8%80%E5%A5%97%E6%9D%90%E8%B4%A8%E5%85%B1%E4%BA%AB%E5%8E%8B%E7%BC%A9%E8%A1%A8%E7%A4%BA"><span class="toc-list-text">一套材质共享压缩表示</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E8%A7%A3%E7%A0%81%E5%90%8E%E7%9A%84%E7%BA%B9%E7%90%86%E8%B4%A8%E9%87%8F"><span class="toc-list-text">解码后的纹理质量</span></a><ol class="toc-list-child"><li class="toc-list-item toc-list-level-3"><a class="toc-list-link" href="#%E8%B4%A8%E9%87%8F%E4%B8%8E%E7%A0%81%E7%8E%87"><span class="toc-list-text">质量与码率</span></a></li></ol></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E7%89%B9%E5%BE%81%E7%BD%91%E6%A0%BC%E5%A6%82%E4%BD%95%E9%87%8D%E5%BB%BA%E7%BA%B9%E7%90%86"><span class="toc-list-text">特征网格如何重建纹理</span></a><ol class="toc-list-child"><li class="toc-list-item toc-list-level-3"><a class="toc-list-link" href="#%E5%90%8C%E4%B8%80%E4%B8%AA-texel-%E6%80%8E%E6%A0%B7%E4%BB%8E%E4%B8%A4%E5%BC%A0%E7%BD%91%E6%A0%BC%E5%8F%96%E6%A0%B7"><span class="toc-list-text">同一个 texel 怎样从两张网格取样</span></a></li><li class="toc-list-item toc-list-level-3"><a class="toc-list-link" href="#%E6%A0%BC%E7%82%B9%E4%B9%8B%E9%97%B4%E7%9A%84%E4%BD%8D%E7%BD%AE%E7%BC%96%E7%A0%81"><span class="toc-list-text">格点之间的位置编码</span></a></li></ol></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%A4%9A%E4%B8%AA-mip-%E5%85%B1%E4%BA%AB%E7%89%B9%E5%BE%81%E5%B1%82"><span class="toc-list-text">多个 mip 共享特征层</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E8%A7%A3%E7%A0%81%E7%BD%91%E7%BB%9C%E7%9A%84%E7%BB%93%E6%9E%84%E4%B8%8E%E5%8F%82%E6%95%B0%E9%87%8F"><span class="toc-list-text">解码网络的结构与参数量</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E4%BB%8E-UV-%E5%88%B0-PBR-%E6%9D%90%E8%B4%A8%E9%80%9A%E9%81%93"><span class="toc-list-text">从 UV 到 PBR 材质通道</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E9%87%8F%E5%8C%96%E5%8F%82%E4%B8%8E%E8%AE%AD%E7%BB%83"><span class="toc-list-text">量化参与训练</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%A6%82%E4%BD%95%E5%A4%84%E7%90%86%E7%BA%B9%E7%90%86%E8%BF%87%E6%BB%A4"><span class="toc-list-text">如何处理纹理过滤</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E9%87%87%E6%A0%B7%E6%88%90%E6%9C%AC"><span class="toc-list-text">采样成本</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#NTC-SDK-%E6%B5%8B%E8%AF%95"><span class="toc-list-text">NTC SDK 测试</span></a><ol class="toc-list-child"><li class="toc-list-item toc-list-level-3"><a class="toc-list-link" href="#%E7%89%B9%E5%BE%81%E7%BA%B9%E7%90%86%E6%95%B0%E7%BB%84%E7%9A%84%E9%80%9A%E9%81%93%E5%B8%83%E5%B1%80"><span class="toc-list-text">特征纹理数组的通道布局</span></a></li><li class="toc-list-item toc-list-level-3"><a class="toc-list-link" href="#FlightHelmet-%E7%9A%84%E4%B8%80%E6%AC%A1%E6%9D%90%E8%B4%A8%E9%87%87%E6%A0%B7"><span class="toc-list-text">FlightHelmet 的一次材质采样</span></a></li><li class="toc-list-item toc-list-level-3"><a class="toc-list-link" href="#%E7%A1%AC%E4%BB%B6%E5%8A%A0%E9%80%9F%E7%BB%93%E6%9E%84"><span class="toc-list-text">硬件加速结构</span></a></li><li class="toc-list-item toc-list-level-3"><a class="toc-list-link" href="#%E4%B8%A4%E5%A5%97%E4%BD%8E%E7%B2%BE%E5%BA%A6%E6%9D%83%E9%87%8D%E6%80%8E%E6%A0%B7%E8%AE%AD%E7%BB%83"><span class="toc-list-text">两套低精度权重怎样训练</span></a></li><li class="toc-list-item toc-list-level-3"><a class="toc-list-link" href="#%E5%88%86%E5%BC%80%E5%A4%84%E7%90%86%E7%A3%81%E7%9B%98%E5%8E%8B%E7%BC%A9%E4%B8%8E-GPU-%E8%AE%BF%E9%97%AE"><span class="toc-list-text">分开处理磁盘压缩与 GPU 访问</span></a></li></ol></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E7%A5%9E%E7%BB%8F%E7%BA%B9%E7%90%86%E5%8E%8B%E7%BC%A9%E7%9A%84%E4%BD%BF%E7%94%A8%E7%AD%96%E7%95%A5"><span class="toc-list-text">神经纹理压缩的使用策略</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E4%BD%BF%E7%94%A8-BC-%E7%89%B9%E5%BE%81%E7%BA%B9%E7%90%86"><span class="toc-list-text">使用 BC 特征纹理</span></a><ol class="toc-list-child"><li class="toc-list-item toc-list-level-3"><a class="toc-list-link" href="#%E7%9B%B4%E6%8E%A5%E8%AE%AD%E7%BB%83-BC1-%E7%89%B9%E5%BE%81%E7%BA%B9%E7%90%86"><span class="toc-list-text">直接训练 BC1 特征纹理</span></a></li><li class="toc-list-item toc-list-level-3"><a class="toc-list-link" href="#BC6H"><span class="toc-list-text">BC6H</span></a></li><li class="toc-list-item toc-list-level-3"><a class="toc-list-link" href="#%E3%80%8A%E5%88%BA%E5%AE%A2%E4%BF%A1%E6%9D%A1-%E5%B9%BB%E6%99%AF%E3%80%8B%E7%9A%84%E7%89%B9%E5%BE%81%E7%BA%B9%E7%90%86"><span class="toc-list-text">《刺客信条 幻景》的特征纹理</span></a></li></ol></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E6%80%BB%E7%BB%93"><span class="toc-list-text">总结</span></a></li></ol></div>
+    <div class="reading-rail__ruler" role="scrollbar" tabindex="0" aria-controls="drift-post-content" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-i18n-aria-label="post.reading_progress" aria-label="阅读进度">
+      <div class="reading-rail__ticks" aria-hidden="true">
+        
+        <span class="reading-rail__tick is-major" style="top: 0%"><b>0</b></span>
+        
+        <span class="reading-rail__tick" style="top: 1%"></span>
+        
+        <span class="reading-rail__tick" style="top: 2%"></span>
+        
+        <span class="reading-rail__tick" style="top: 3%"></span>
+        
+        <span class="reading-rail__tick" style="top: 4%"></span>
+        
+        <span class="reading-rail__tick" style="top: 5%"></span>
+        
+        <span class="reading-rail__tick" style="top: 6%"></span>
+        
+        <span class="reading-rail__tick" style="top: 7%"></span>
+        
+        <span class="reading-rail__tick" style="top: 8%"></span>
+        
+        <span class="reading-rail__tick" style="top: 9%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 10%"><b>10</b></span>
+        
+        <span class="reading-rail__tick" style="top: 11%"></span>
+        
+        <span class="reading-rail__tick" style="top: 12%"></span>
+        
+        <span class="reading-rail__tick" style="top: 13%"></span>
+        
+        <span class="reading-rail__tick" style="top: 14%"></span>
+        
+        <span class="reading-rail__tick" style="top: 15%"></span>
+        
+        <span class="reading-rail__tick" style="top: 16%"></span>
+        
+        <span class="reading-rail__tick" style="top: 17%"></span>
+        
+        <span class="reading-rail__tick" style="top: 18%"></span>
+        
+        <span class="reading-rail__tick" style="top: 19%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 20%"><b>20</b></span>
+        
+        <span class="reading-rail__tick" style="top: 21%"></span>
+        
+        <span class="reading-rail__tick" style="top: 22%"></span>
+        
+        <span class="reading-rail__tick" style="top: 23%"></span>
+        
+        <span class="reading-rail__tick" style="top: 24%"></span>
+        
+        <span class="reading-rail__tick" style="top: 25%"></span>
+        
+        <span class="reading-rail__tick" style="top: 26%"></span>
+        
+        <span class="reading-rail__tick" style="top: 27%"></span>
+        
+        <span class="reading-rail__tick" style="top: 28%"></span>
+        
+        <span class="reading-rail__tick" style="top: 29%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 30%"><b>30</b></span>
+        
+        <span class="reading-rail__tick" style="top: 31%"></span>
+        
+        <span class="reading-rail__tick" style="top: 32%"></span>
+        
+        <span class="reading-rail__tick" style="top: 33%"></span>
+        
+        <span class="reading-rail__tick" style="top: 34%"></span>
+        
+        <span class="reading-rail__tick" style="top: 35%"></span>
+        
+        <span class="reading-rail__tick" style="top: 36%"></span>
+        
+        <span class="reading-rail__tick" style="top: 37%"></span>
+        
+        <span class="reading-rail__tick" style="top: 38%"></span>
+        
+        <span class="reading-rail__tick" style="top: 39%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 40%"><b>40</b></span>
+        
+        <span class="reading-rail__tick" style="top: 41%"></span>
+        
+        <span class="reading-rail__tick" style="top: 42%"></span>
+        
+        <span class="reading-rail__tick" style="top: 43%"></span>
+        
+        <span class="reading-rail__tick" style="top: 44%"></span>
+        
+        <span class="reading-rail__tick" style="top: 45%"></span>
+        
+        <span class="reading-rail__tick" style="top: 46%"></span>
+        
+        <span class="reading-rail__tick" style="top: 47%"></span>
+        
+        <span class="reading-rail__tick" style="top: 48%"></span>
+        
+        <span class="reading-rail__tick" style="top: 49%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 50%"><b>50</b></span>
+        
+        <span class="reading-rail__tick" style="top: 51%"></span>
+        
+        <span class="reading-rail__tick" style="top: 52%"></span>
+        
+        <span class="reading-rail__tick" style="top: 53%"></span>
+        
+        <span class="reading-rail__tick" style="top: 54%"></span>
+        
+        <span class="reading-rail__tick" style="top: 55%"></span>
+        
+        <span class="reading-rail__tick" style="top: 56%"></span>
+        
+        <span class="reading-rail__tick" style="top: 57%"></span>
+        
+        <span class="reading-rail__tick" style="top: 58%"></span>
+        
+        <span class="reading-rail__tick" style="top: 59%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 60%"><b>60</b></span>
+        
+        <span class="reading-rail__tick" style="top: 61%"></span>
+        
+        <span class="reading-rail__tick" style="top: 62%"></span>
+        
+        <span class="reading-rail__tick" style="top: 63%"></span>
+        
+        <span class="reading-rail__tick" style="top: 64%"></span>
+        
+        <span class="reading-rail__tick" style="top: 65%"></span>
+        
+        <span class="reading-rail__tick" style="top: 66%"></span>
+        
+        <span class="reading-rail__tick" style="top: 67%"></span>
+        
+        <span class="reading-rail__tick" style="top: 68%"></span>
+        
+        <span class="reading-rail__tick" style="top: 69%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 70%"><b>70</b></span>
+        
+        <span class="reading-rail__tick" style="top: 71%"></span>
+        
+        <span class="reading-rail__tick" style="top: 72%"></span>
+        
+        <span class="reading-rail__tick" style="top: 73%"></span>
+        
+        <span class="reading-rail__tick" style="top: 74%"></span>
+        
+        <span class="reading-rail__tick" style="top: 75%"></span>
+        
+        <span class="reading-rail__tick" style="top: 76%"></span>
+        
+        <span class="reading-rail__tick" style="top: 77%"></span>
+        
+        <span class="reading-rail__tick" style="top: 78%"></span>
+        
+        <span class="reading-rail__tick" style="top: 79%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 80%"><b>80</b></span>
+        
+        <span class="reading-rail__tick" style="top: 81%"></span>
+        
+        <span class="reading-rail__tick" style="top: 82%"></span>
+        
+        <span class="reading-rail__tick" style="top: 83%"></span>
+        
+        <span class="reading-rail__tick" style="top: 84%"></span>
+        
+        <span class="reading-rail__tick" style="top: 85%"></span>
+        
+        <span class="reading-rail__tick" style="top: 86%"></span>
+        
+        <span class="reading-rail__tick" style="top: 87%"></span>
+        
+        <span class="reading-rail__tick" style="top: 88%"></span>
+        
+        <span class="reading-rail__tick" style="top: 89%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 90%"><b>90</b></span>
+        
+        <span class="reading-rail__tick" style="top: 91%"></span>
+        
+        <span class="reading-rail__tick" style="top: 92%"></span>
+        
+        <span class="reading-rail__tick" style="top: 93%"></span>
+        
+        <span class="reading-rail__tick" style="top: 94%"></span>
+        
+        <span class="reading-rail__tick" style="top: 95%"></span>
+        
+        <span class="reading-rail__tick" style="top: 96%"></span>
+        
+        <span class="reading-rail__tick" style="top: 97%"></span>
+        
+        <span class="reading-rail__tick" style="top: 98%"></span>
+        
+        <span class="reading-rail__tick" style="top: 99%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 100%"><b>100</b></span>
+        
+      </div>
+      <span class="reading-rail__cursor" aria-hidden="true"></span>
+    </div>
+  </div>
+  <div class="reading-rail__hint"><span data-ui-lang="zh-CN">拖动刻度跳转 · 点击章节定位</span><span data-ui-lang="en">Drag the ruler · Click a chapter</span></div>
+</nav>
+
+
+  </aside>
+  
+</article>
+
+  </main>
+  
+<footer class="site-footer">
+  <div class="site-footer__inner">
+    <span class="site-footer__mark" aria-hidden="true"><svg viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" fill="currentColor"><rect x="5" y="1" width="2" height="10"/><rect x="1" y="5" width="10" height="2"/><rect x="3" y="3" width="1" height="1"/><rect x="8" y="3" width="1" height="1"/><rect x="3" y="8" width="1" height="1"/><rect x="8" y="8" width="1" height="1"/></svg></span>
+    <span>© 2025–2026 DoubleYe</span>
+    <span class="site-footer__links">
+      
+      <a target="_blank" rel="noopener" href="https://doubleye.me/blog/atom.xml">RSS</a>
+      <a href="https://hexo.io" target="_blank" rel="noopener"><span data-ui-lang="zh-CN">由 Hexo 驱动</span><span data-ui-lang="en">Powered by Hexo</span></a>
+    </span>
+  </div>
+</footer>
+
+  
+<script src="/js/language.js"></script>
+
+  
+<script src="/js/background.js"></script>
+
+  
+<script src="/js/theme.js"></script>
+
+  
+<script src="/js/reading-progress.js"></script>
+
+  
+
+</body>
+</html>

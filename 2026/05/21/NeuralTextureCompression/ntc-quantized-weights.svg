@@ -1,0 +1,57 @@
+<svg style="--diagram-background:#222426;--diagram-text:#e6e4e0;--diagram-accent:#f3b958;--diagram-teal:#4bc292;--diagram-blue:#009dff;--diagram-purple:#8867a5;--diagram-orange:#f3b958" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 277"
+     class="theme-diagram" data-theme-svg="1" role="img"
+     aria-labelledby="ntc-quantized-weights-title ntc-quantized-weights-desc">
+<title id="ntc-quantized-weights-title">训练末段的特征网格与两份解码器权重</title>
+<desc id="ntc-quantized-weights-desc">横轴从全部训练步数的百分之九十五到百分之一百。特征首先冻结。网络权重在百分之九十六处分出一个副本，随后细调混合 FP8 权重，最后百分之二的步数转去细调全 INT8 副本。实心带表示更新，虚线表示保留。</desc>
+<style>
+.theme-diagram {
+  --d-bg: var(--diagram-background, #ffffff);
+  --d-ink: var(--diagram-text, #383838);
+  --d-accent: var(--diagram-accent, #2bbc8a);
+  --d-muted: color-mix(in srgb, var(--d-ink) 68%, var(--d-bg));
+  --d-border: color-mix(in srgb, var(--d-ink) 19%, var(--d-bg));
+  --d-surface: color-mix(in srgb, var(--d-ink) 3%, var(--d-bg));
+  --d-shadow: color-mix(in srgb, #000000 35%, var(--d-bg));
+  --d-teal: var(--diagram-teal, color-mix(in srgb, var(--d-accent) 76%, var(--d-ink)));
+  --d-blue: var(--diagram-blue, color-mix(in srgb, var(--d-accent) 28%, #6c91bc));
+  --d-purple: var(--diagram-purple, color-mix(in srgb, var(--d-accent) 15%, #a18ab9));
+  --d-orange: var(--diagram-orange, color-mix(in srgb, var(--d-accent) 10%, #d3a462));
+  font-family: var(--diagram-font, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif);
+}
+.theme-diagram text { font-family: inherit; }
+</style>
+<rect width="720" height="277" fill="var(--d-bg)"/>
+
+<g fill="none" stroke="var(--d-border)" stroke-width="2">
+  <path d="M192 36v199 M288 36v199 M480 36v199 M672 36v199"/>
+</g>
+<g fill="var(--d-ink)" font-size="26">
+  <text x="27" y="66">特征网格</text>
+  <text x="27" y="128">混合 FP8</text>
+  <text x="27" y="197">全 INT8</text>
+  <text x="27" y="258">训练进度</text>
+</g>
+
+<!-- The grid stays frozen across the whole interval. -->
+<rect x="183" y="49" width="18" height="18" rx="2" fill="var(--d-teal)"/>
+<path d="M205 58h467" fill="none" stroke="var(--d-teal)" stroke-width="4" stroke-dasharray="7 6"/>
+
+<!-- One full-precision state at 96%, two separately refined copies. -->
+<path d="M193 151h95" fill="none" stroke="var(--d-muted)" stroke-width="13"/>
+<circle cx="288" cy="151" r="8" fill="var(--d-ink)"/>
+<path d="M288 144v-25h12 M288 158v30h12" fill="none" stroke="var(--d-ink)" stroke-width="2.8"/>
+<rect x="297" y="112" width="183" height="14" rx="3" fill="var(--d-purple)"/>
+<path d="M482 119h190" fill="none" stroke="var(--d-purple)" stroke-width="4" stroke-dasharray="7 6"/>
+<path d="M298 188h181" fill="none" stroke="var(--d-orange)" stroke-width="4" stroke-dasharray="7 6"/>
+<rect x="480" y="181" width="192" height="14" rx="3" fill="var(--d-orange)"/>
+<g fill="var(--d-bg)" stroke-width="3">
+  <circle cx="672" cy="119" r="5" stroke="var(--d-purple)"/>
+  <circle cx="672" cy="188" r="5" stroke="var(--d-orange)"/>
+</g>
+
+<path d="M192 227h480 M192 227v6 M288 227v6 M480 227v6 M672 227v6" fill="none" stroke="var(--d-muted)" stroke-width="2"/>
+<g fill="var(--d-ink)" font-size="25" text-anchor="middle">
+  <text x="192" y="258">95%</text><text x="288" y="258">96%</text>
+  <text x="480" y="258">98%</text><text x="672" y="258">100%</text>
+</g>
+</svg>
