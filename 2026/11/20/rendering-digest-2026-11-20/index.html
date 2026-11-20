@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN" data-palette="green" data-palette-pref="auto" data-background="sky" data-mode="day" data-mode-pref="day">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Gelly 的屏幕空间流体渲染 · DoubleYe</title>
+  
+  <meta name="theme-color" content="#f0eee8">
+  <meta name="description" content="Gelly 是 Garry’s Mod 的流体插件。开发者 Yog 在开发日志（2026 年 5 月 20 日）里放了一张早期截图：水已经聚成一片，表面还像一堆挤在一起的珠子。 那版沿用了经典的屏幕空间粒子渲染。每个粒子画一个朝向相机的四边形，片元着色器求视线与球面的交点，深度测试留下离相机最近的一层。直接从这张深度图算出来的法线会沿着每个球面转向，相邻粒子交界处的亮暗变化尤其明显。通常会先平滑深">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Gelly 的屏幕空间流体渲染">
+<meta property="og:url" content="https://frostyleaves.github.io/2026/11/20/rendering-digest-2026-11-20/index.html">
+<meta property="og:site_name" content="DoubleYe">
+<meta property="og:description" content="Gelly 是 Garry’s Mod 的流体插件。开发者 Yog 在开发日志（2026 年 5 月 20 日）里放了一张早期截图：水已经聚成一片，表面还像一堆挤在一起的珠子。 那版沿用了经典的屏幕空间粒子渲染。每个粒子画一个朝向相机的四边形，片元着色器求视线与球面的交点，深度测试留下离相机最近的一层。直接从这张深度图算出来的法线会沿着每个球面转向，相邻粒子交界处的亮暗变化尤其明显。通常会先平滑深">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-11-20T00:00:00.000Z">
+<meta property="article:modified_time" content="2026-11-20T06:01:20.661Z">
+<meta property="article:author" content="DoubleYe">
+<meta property="article:tag" content="Garry&#39;s Mod">
+<meta property="article:tag" content="屏幕空间渲染">
+<meta property="article:tag" content="流体渲染">
+<meta name="twitter:card" content="summary">
+  
+    <link rel="icon" href="/images/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" sizes="192x192" href="/images/favicon-192x192.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+  
+  <link rel="alternate" type="application/atom+xml" title="DoubleYe" href="https://doubleye.me/blog/atom.xml">
+  
+<link rel="stylesheet" href="/css/fonts.css">
+
+  
+<link rel="stylesheet" href="/css/main.css">
+
+  <style id="palette-css">:root,:root[data-palette="blue"]{--accent:#009dff;--bg-1:#009dff;--bg-2:#1f4f77;--bg-3:#1c2628}
+.tone-blue{--tone:#009dff}
+:root[data-palette="green"]{--accent:#4bc292;--bg-1:#4bc292;--bg-2:#1f5e4a;--bg-3:#1c2628}
+.tone-green{--tone:#4bc292}
+:root[data-palette="gold"]{--accent:#f3b958;--bg-1:#f3b958;--bg-2:#7e5a1e;--bg-3:#1c2628}
+.tone-gold{--tone:#f3b958}
+:root[data-palette="red"]{--accent:#fe5f55;--bg-1:#fe5f55;--bg-2:#6e2a26;--bg-3:#1c2628}
+.tone-red{--tone:#fe5f55}</style>
+  <style id="language-css">:root[lang="zh-CN"] [data-ui-lang]:not([data-ui-lang="zh-CN"]){display:none}
+:root[lang="en"] [data-ui-lang]:not([data-ui-lang="en"]){display:none}</style>
+  <script>
+    (function () {
+      // Keep reader preferences when upgrading from the theme's former name.
+      function migrate(storage, names) {
+        names.forEach(function (name) {
+          var key = 'drift-' + name;
+          if (storage.getItem(key) !== null) return;
+          var previous = storage.getItem('doubleye-' + name);
+          if (previous !== null) storage.setItem(key, previous);
+        });
+      }
+      try { migrate(localStorage, ['palette', 'background', 'mode']); } catch (e) { /* storage may be blocked */ }
+      try { migrate(sessionStorage, ['bg-time']); } catch (e) { /* storage may be blocked */ }
+      var root = document.documentElement;
+      var languages = ["zh-CN","en"], language = null;
+      try { language = localStorage.getItem('drift-language'); } catch (e) { /* storage may be blocked */ }
+      root.lang = languages.indexOf(language) >= 0 ? language : "zh-CN";
+      var names = ["blue","green","gold","red"], auto = 'green', pref = null;
+      try { pref = localStorage.getItem('drift-palette'); } catch (e) { pref = null; }
+      if (names.indexOf(pref) < 0) pref = 'auto';
+      root.setAttribute('data-palette', pref === 'auto' ? auto : pref);
+      root.setAttribute('data-palette-pref', pref);
+      var scenes = ["sky","ocean"], scene = null, mode = null;
+      try { scene = localStorage.getItem('drift-background'); mode = localStorage.getItem('drift-mode'); } catch (e) { scene = null; mode = null; }
+      if (scenes.indexOf(scene) < 0) scene = 'sky';
+      if (mode !== 'auto' && mode !== 'day' && mode !== 'night') mode = 'day';
+      root.setAttribute('data-mode-pref', mode);
+      if (mode === 'auto') mode = window.matchMedia && !window.matchMedia('(prefers-color-scheme: dark)').matches ? 'day' : 'night';
+      root.setAttribute('data-background', scene);
+      root.setAttribute('data-mode', mode);
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute('content', mode === 'day' ? '#f0eee8' : '#191a1c');
+    })();
+    window.__THEME = {
+      palettes: {"blue":{"colors":["#009dff","#1f4f77","#1c2628"],"accent":"#009dff"},"green":{"colors":["#4bc292","#1f5e4a","#1c2628"],"accent":"#4bc292"},"gold":{"colors":["#f3b958","#7e5a1e","#1c2628"],"accent":"#f3b958"},"red":{"colors":["#fe5f55","#6e2a26","#1c2628"],"accent":"#fe5f55"}},
+      auto: 'green',
+      labels: {"auto":"自动","toggle":"切换配色","copy":"复制","copied":"已复制","sceneToggle":"切换背景","scenes":{"sky":"天空","ocean":"海洋"},"modeToggle":"切换日夜","modes":{"auto":"自动","day":"日间","night":"夜间"},"blue":"湖蓝","green":"青翠","gold":"琥珀","red":"绯红"},
+      background: {"enable":true,"style":"sky","styles":["sky","ocean"],"mode":"day","speed":1,"fps":30,"pixel_filter":740},
+      juice: {"tilt":true,"wobble":true,"foil":"pixel-glass","text":"titles"},
+      i18n: {"languages":["zh-CN","en"],"default":"zh-CN","dictionaries":{"zh-CN":{"nav.home":"首页","nav.posts":"文章","nav.categories":"分类","nav.tags":"标签","nav.archives":"归档","language.toggle":"切换语言","language.name":"中文","language.short":"中","pagination":"翻页","hero.posts":"篇文章","hero.categories":"个分类","hero.tags":"个标签","post.navigation":"文章导航","post.toc":"目录","post.reading_progress":"阅读进度","post.reading_hint":"拖动刻度跳转 · 点击章节定位","post.updated":"更新于","post.words":"字","post.minutes":"分钟","post.prev":"上一篇","post.next":"下一篇","post.license_prefix":"本文采用","post.license_suffix":"许可","post.copy":"复制","post.copied":"已复制","post.scroll_down":"向下滚动","post.tags":"标签","archive.title":"归档","archive.total_prefix":"共","archive.total_suffix":"篇","category.title":"分类","tag.title":"标签","footer.powered":"由 Hexo 驱动","palette.toggle":"切换配色","palette.auto":"自动","palette.blue":"湖蓝","palette.green":"青翠","palette.gold":"琥珀","palette.red":"绯红","background.toggle":"切换背景","background.sky":"天空","background.ocean":"海洋","mode.toggle":"切换日夜","mode.auto":"自动","mode.day":"日间","mode.night":"夜间","error404.title":"页面不存在","error404.description":"你访问的页面可能已被移动或删除。","error404.home":"返回首页","skip":"跳到正文"},"en":{"nav.home":"Home","nav.posts":"Posts","nav.categories":"Categories","nav.tags":"Tags","nav.archives":"Archives","language.toggle":"Language","language.name":"English","language.short":"EN","pagination":"Pagination","hero.posts":"posts","hero.categories":"categories","hero.tags":"tags","post.navigation":"Post navigation","post.toc":"Contents","post.reading_progress":"Reading progress","post.reading_hint":"Drag the ruler · Click a chapter","post.updated":"Updated","post.words":"words","post.minutes":"min","post.prev":"Newer","post.next":"Older","post.license_prefix":"Licensed under","post.license_suffix":"","post.copy":"Copy","post.copied":"Copied","post.scroll_down":"Scroll down","post.tags":"Tags","archive.title":"Archives","archive.total_prefix":"","archive.total_suffix":"posts","category.title":"Categories","tag.title":"Tags","footer.powered":"Powered by Hexo","palette.toggle":"Palette","palette.auto":"auto","palette.blue":"Lake","palette.green":"Jade","palette.gold":"Amber","palette.red":"Crimson","background.toggle":"Backdrop","background.sky":"Sky","background.ocean":"Ocean","mode.toggle":"Day / night","mode.auto":"Auto","mode.day":"Day","mode.night":"Night","error404.title":"Page not found","error404.description":"The page you are looking for may have been moved or removed.","error404.home":"Back to home","skip":"Skip to content"}}}
+    };
+  </script>
+<meta name="generator" content="Hexo 8.1.2"><link rel="canonical" href="https://doubleye.me/blog/2026/11/20/rendering-digest-2026-11-20/">
+</head>
+
+
+<body class="juice-tilt juice-wobble juice-foil text-titles" data-card-effect="pixel-glass">
+  <a class="skip-link" href="#main"><span data-ui-lang="zh-CN">跳到正文</span><span data-ui-lang="en">Skip to content</span></a>
+  <div class="backdrop" id="backdrop" aria-hidden="true"><canvas class="backdrop__canvas" id="backdrop-canvas"></canvas><canvas class="backdrop__snapshot" id="backdrop-snapshot"></canvas></div>
+  
+<header class="site-header" id="site-header">
+  <div class="site-header__inner">
+    <a class="site-brand px" href="/" aria-label="DoubleYe"><span class="w"><span class="ch" style="--i:0" aria-hidden="true">D</span><span class="ch" style="--i:1" aria-hidden="true">o</span><span class="ch" style="--i:2" aria-hidden="true">u</span><span class="ch" style="--i:3" aria-hidden="true">b</span><span class="ch" style="--i:4" aria-hidden="true">l</span><span class="ch" style="--i:5" aria-hidden="true">e</span><span class="ch" style="--i:6" aria-hidden="true">Y</span><span class="ch" style="--i:7" aria-hidden="true">e</span></span></a>
+    <nav class="site-nav" data-i18n-aria-label="nav.home" aria-label="首页">
+      
+        <a class="btn btn--nav px" href="/archives/"><span data-ui-lang="zh-CN">文章</span><span data-ui-lang="en">Posts</span></a>
+      
+        <a class="btn btn--nav px" href="/categories/"><span data-ui-lang="zh-CN">分类</span><span data-ui-lang="en">Categories</span></a>
+      
+        <a class="btn btn--nav px" href="/tags/"><span data-ui-lang="zh-CN">标签</span><span data-ui-lang="en">Tags</span></a>
+      
+        <a class="btn btn--nav px" href="/"><span data-ui-lang="zh-CN">首页</span><span data-ui-lang="en">Home</span></a>
+      
+      <div class="site-controls">
+      <button class="palette-toggle" id="palette-toggle" type="button" aria-label="切换配色: 自动 · 青翠" title="切换配色: 自动 · 青翠">
+        <span class="palette-toggle__disc" aria-hidden="true"></span>
+        <span class="palette-toggle__label px" id="palette-label"><span data-ui-lang="zh-CN">自动</span><span data-ui-lang="en">auto</span></span>
+      </button>
+      
+      <button class="scene-toggle" id="background-toggle" type="button" aria-label="切换背景" title="切换背景: 天空">
+        <span class="scene-toggle__icon" aria-hidden="true">
+          <svg class="scene-icon scene-icon--sky" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="2" y="0" width="1" height="5"/><rect x="0" y="2" width="5" height="1"/><rect x="1" y="1" width="1" height="1"/><rect x="3" y="1" width="1" height="1"/><rect x="1" y="3" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="6" y="5" width="4" height="1"/><rect x="5" y="6" width="6" height="1"/><rect x="4" y="7" width="8" height="1"/><rect x="3" y="8" width="9" height="2"/></svg>
+          <svg class="scene-icon scene-icon--ocean" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="1" y="2" width="3" height="1"/><rect x="6" y="2" width="3" height="1"/><rect x="0" y="3" width="1" height="1"/><rect x="4" y="3" width="2" height="1"/><rect x="9" y="3" width="2" height="1"/><rect x="1" y="6" width="3" height="1"/><rect x="6" y="6" width="3" height="1"/><rect x="0" y="7" width="1" height="1"/><rect x="4" y="7" width="2" height="1"/><rect x="9" y="7" width="2" height="1"/><rect x="1" y="10" width="3" height="1"/><rect x="6" y="10" width="3" height="1"/><rect x="0" y="11" width="1" height="1"/><rect x="4" y="11" width="2" height="1"/><rect x="9" y="11" width="2" height="1"/></svg>
+        </span>
+        <span class="scene-toggle__label px" id="background-label"><span data-ui-lang="zh-CN">天空</span><span data-ui-lang="en">Sky</span></span>
+      </button>
+      
+      <button class="scene-toggle mode-toggle" id="mode-toggle" type="button" aria-label="切换日夜" title="切换日夜: 日间">
+        <span class="scene-toggle__icon" aria-hidden="true">
+          <svg class="mode-icon mode-icon--auto" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="1" y="1" width="10" height="1"/><rect x="0" y="2" width="1" height="5"/><rect x="11" y="2" width="1" height="5"/><rect x="1" y="7" width="10" height="1"/><rect x="5" y="8" width="2" height="2"/><rect x="3" y="10" width="6" height="1"/></svg>
+          <svg class="mode-icon mode-icon--night" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="4" y="1" width="4" height="1"/><rect x="3" y="2" width="2" height="1"/><rect x="2" y="3" width="2" height="2"/><rect x="2" y="5" width="2" height="2"/><rect x="2" y="7" width="2" height="2"/><rect x="3" y="9" width="2" height="1"/><rect x="4" y="10" width="4" height="1"/><rect x="8" y="9" width="2" height="1"/><rect x="8" y="2" width="2" height="1"/></svg>
+          <svg class="mode-icon mode-icon--day" viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><rect x="4" y="4" width="4" height="4"/><rect x="5" y="0" width="2" height="2"/><rect x="5" y="10" width="2" height="2"/><rect x="0" y="5" width="2" height="2"/><rect x="10" y="5" width="2" height="2"/><rect x="1" y="1" width="2" height="1"/><rect x="1" y="2" width="1" height="1"/><rect x="9" y="1" width="2" height="1"/><rect x="10" y="2" width="1" height="1"/><rect x="1" y="9" width="1" height="1"/><rect x="1" y="10" width="2" height="1"/><rect x="10" y="9" width="1" height="1"/><rect x="9" y="10" width="2" height="1"/></svg>
+        </span>
+        <span class="scene-toggle__label px" id="mode-label"><span data-ui-lang="zh-CN">日间</span><span data-ui-lang="en">Day</span></span>
+      </button>
+      
+      <button class="language-toggle px" id="language-toggle" type="button" title="切换语言" aria-label="切换语言"><span data-ui-lang="zh-CN">中</span><span data-ui-lang="en">EN</span></button>
+      
+      </div>
+    </nav>
+  </div>
+</header>
+
+  <main id="main" class="site-main">
+    
+<article class="post-layout has-toc" itemscope itemtype="https://schema.org/BlogPosting">
+  
+  <div class="reading-mobile" hidden role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-i18n-aria-label="post.reading_progress" aria-label="阅读进度"><span></span></div>
+  
+  <div class="post container">
+    <header class="post-header">
+      <h1 class="post-title px title-anim" itemprop="headline" aria-label="Gelly 的屏幕空间流体渲染"><span class="w"><span class="ch" style="--i:0" aria-hidden="true">G</span><span class="ch" style="--i:1" aria-hidden="true">e</span><span class="ch" style="--i:2" aria-hidden="true">l</span><span class="ch" style="--i:3" aria-hidden="true">l</span><span class="ch" style="--i:4" aria-hidden="true">y</span></span> <span class="ch" style="--i:5" aria-hidden="true">的</span><span class="ch" style="--i:6" aria-hidden="true">屏</span><span class="ch" style="--i:7" aria-hidden="true">幕</span><span class="ch" style="--i:8" aria-hidden="true">空</span><span class="ch" style="--i:9" aria-hidden="true">间</span><span class="ch" style="--i:10" aria-hidden="true">流</span><span class="ch" style="--i:11" aria-hidden="true">体</span><span class="ch" style="--i:12" aria-hidden="true">渲</span><span class="ch" style="--i:13" aria-hidden="true">染</span></h1>
+      
+<div class="post-meta">
+  <time class="badge badge--date px" datetime="2026-11-20T00:00:00.000Z">2026-11-20</time>
+  
+    <a class="seal tone-green px" href="/categories/%E6%AF%8F%E6%97%A5%E6%8E%A8%E8%8D%90/"><span class="seal__dot" aria-hidden="true"></span>每日推荐</a>
+  
+  <span class="badge badge--blue px post-meta__words">869 <span data-ui-lang="zh-CN">字</span><span data-ui-lang="en">words</span></span>
+  <span class="badge badge--red px">2 <span data-ui-lang="zh-CN">分钟</span><span data-ui-lang="en">min</span></span>
+  
+</div>
+
+    </header>
+
+    
+    <details class="toc-mobile panel">
+      <summary class="px"><span data-ui-lang="zh-CN">目录</span><span data-ui-lang="en">Contents</span><span class="toc-mobile__percent" data-reading-percent aria-hidden="true"></span></summary>
+      
+
+<nav class="toc panel" data-i18n-aria-label="post.toc" aria-label="目录">
+  <div class="toc__title px"><span data-ui-lang="zh-CN">目录</span><span data-ui-lang="en">Contents</span></div>
+  <ol class="toc-list"><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E6%8A%8A%E7%90%83%E6%8B%89%E6%88%90%E6%A4%AD%E7%90%83"><span class="toc-list-text">把球拉成椭球</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E7%9B%B4%E6%8E%A5%E5%B9%B3%E6%BB%91%E6%B3%95%E7%BA%BF"><span class="toc-list-text">直接平滑法线</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%8E%9A%E5%BA%A6%E5%9B%BE"><span class="toc-list-text">厚度图</span></a></li></ol>
+</nav>
+
+
+    </details>
+    
+
+    <div class="post-body panel">
+      <div class="post-content" id="drift-post-content" itemprop="articleBody" lang="zh-CN">
+        <p><a target="_blank" rel="noopener" href="https://github.com/gelly-gmod/gelly">Gelly</a> 是 Garry’s Mod 的流体插件。开发者 Yog 在<a target="_blank" rel="noopener" href="https://graphics-programming.org/blog/adding-real-time-fluid-rendering-to-a-game-from-2004">开发日志</a>（2026 年 5 月 20 日）里放了一张<a target="_blank" rel="noopener" href="https://graphics-programming.org/assets/images/first-attempt-b7474c3971a04718024833c12997a5a8.png">早期截图</a>：水已经聚成一片，表面还像一堆挤在一起的珠子。</p>
+<p>那版沿用了<a target="_blank" rel="noopener" href="https://wstahw.win.tue.nl/edu/2IV06/andrei/particle_rendering/provided/p91-van_der_laan.pdf">经典的屏幕空间粒子渲染</a>。每个粒子画一个朝向相机的四边形，片元着色器求视线与球面的交点，深度测试留下离相机最近的一层。直接从这张深度图算出来的法线会沿着每个球面转向，相邻粒子交界处的亮暗变化尤其明显。通常会先平滑深度，再从新深度图求法线。</p>
+<p>Yog 后来改用窄范围深度滤波。当前像素只和深度接近的邻居混合，这样就不会把波峰和后方的水面抹在一起。波峰保住了，但边沿容易被挤成一条尖边。水片上的一些球粒也还看得出来。</p>
+<h2 id="把球拉成椭球"><a href="#把球拉成椭球" class="headerlink" title="把球拉成椭球"></a>把球拉成椭球</h2><p>NVIDIA FleX 会根据每个粒子附近的分布算出各向异性数据。Gelly 用这些数据设置椭球的朝向和轴长。薄水片里的粒子能沿着水片拉长，沿厚度方向压扁。<a target="_blank" rel="noopener" href="https://graphics-programming.org/assets/images/anisotropic-vs-isotropic-05fd7807dcc492539e341fcc9d9af82f.png">原文的球与椭球对比</a>里，同一组粒子拉长后，原先球与球之间的断口少了。</p>
+<p>渲染一个椭球时，Gelly 先算出它在屏幕上的包围矩形，再在片元着色器里把视线变换到粒子的局部空间。在这个空间里，椭球恢复成球。求到交点后，再变换回去计算深度。求交多了坐标变换，贴合薄水片的矩形却少覆盖了一些无效像素。<a target="_blank" rel="noopener" href="https://graphics-programming.org/assets/images/ellipsoid-overdraw-dbd26c23202637c9fadfbb9bf60cb19f.png">Yog 的 Overdraw 对比</a>展示了这一点。远处还有一些椭球小到不足一个像素，深度图里会冒出零碎的点。Gelly 取粒子邻域的最大方差来估计它对表面的贡献，低于阈值就不画。</p>
+<h2 id="直接平滑法线"><a href="#直接平滑法线" class="headerlink" title="直接平滑法线"></a>直接平滑法线</h2><p>用上椭球以后，水片连得更完整了，但小起伏还是会被深度滤波抹掉。分辨率越高，这一步的开销也越明显。最后一版先从椭球深度图算出初始法线，然后只滤法线。深度图仍参与采样权重的计算：邻居和中心像素的深度差越大，邻居的权重越小。采样落到空背景时直接跳过，水片边缘就不会混入背景的值。</p>
+<p>滤波在两张法线图之间交替读写，每轮取 9 个样本。Gelly 用 Interleaved Gradient Noise 按迭代次数抖动采样位置，让后面的轮次补到前面没采到的位置，每轮混合后再把法线归一化。需要看得更远时，部分轮次还会生成 mip 链，用较粗的 mip 扩大覆盖范围，单轮仍取 9 个样本。<a target="_blank" rel="noopener" href="https://graphics-programming.org/assets/images/last-iteration-0fe5fea06a2212be44ba21a8135846bd.png">最后一轮的法线图</a>里，粒子交界处已经平滑下来，水片翻折处仍有清楚的方向变化。</p>
+<h2 id="厚度图"><a href="#厚度图" class="headerlink" title="厚度图"></a>厚度图</h2><p>深度图只记了光线从哪儿入水。为了估算吸收，Gelly 另外给每个粒子画一个边缘渐淡的圆，用加法混合累积，再把结果降采样并平滑。投影重叠的粒子越多，着色时吸收的光就越多。Yog 也试过用入水点和出水点算实际距离，计算更贵，画面改善却不明显。</p>
+
+      </div>
+      
+        <p class="post-license">
+          <span data-ui-lang="zh-CN">本文采用</span><span data-ui-lang="en">Licensed under</span>
+          <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="license noopener">CC BY-NC 4.0</a>
+          <span data-ui-lang="zh-CN">许可</span><span data-ui-lang="en"></span>
+        </p>
+      
+    </div>
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a class="chip px" href="/tags/%E5%B1%8F%E5%B9%95%E7%A9%BA%E9%97%B4%E6%B8%B2%E6%9F%93/">#屏幕空间渲染</a>
+          
+            <a class="chip px" href="/tags/%E6%B5%81%E4%BD%93%E6%B8%B2%E6%9F%93/">#流体渲染</a>
+          
+            <a class="chip px" href="/tags/Garry-s-Mod/">#Garry&#39;s Mod</a>
+          
+        </div>
+      
+      
+      <nav class="post-nav" data-i18n-aria-label="post.navigation" aria-label="文章导航">
+        <span></span>
+        
+          <a class="post-nav__item post-nav__next card" data-tilt href="/2026/11/19/rendering-digest-2026-11-19/">
+            <span class="card__inner">
+              <span class="post-nav__label px"><span data-ui-lang="zh-CN">下一篇</span><span data-ui-lang="en">Older</span> · 2026-11-19</span>
+              <span class="post-nav__title">CORTAO 圆盘遮挡环境光</span>
+              <span class="card__foil" aria-hidden="true"></span>
+            </span>
+          </a>
+        
+      </nav>
+      
+    </footer>
+
+    
+
+<section class="comments panel" id="comments"
+  data-repo="FrostyLeaves/frostyleaves.github.io"
+  data-issue-term="og:title"
+  data-label="utterances"></section>
+
+
+  </div>
+
+  
+  <aside class="post-aside">
+    
+
+<nav class="reading-rail" data-i18n-aria-label="post.toc" aria-label="目录">
+  <div class="reading-rail__head px">
+    <span><span data-ui-lang="zh-CN">目录</span><span data-ui-lang="en">Contents</span></span>
+    <span class="reading-rail__percent" data-reading-percent aria-hidden="true">000%</span>
+  </div>
+  <div class="reading-rail__stage">
+    <div class="reading-rail__chapters"><ol class="toc-list"><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E6%8A%8A%E7%90%83%E6%8B%89%E6%88%90%E6%A4%AD%E7%90%83"><span class="toc-list-text">把球拉成椭球</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E7%9B%B4%E6%8E%A5%E5%B9%B3%E6%BB%91%E6%B3%95%E7%BA%BF"><span class="toc-list-text">直接平滑法线</span></a></li><li class="toc-list-item toc-list-level-2"><a class="toc-list-link" href="#%E5%8E%9A%E5%BA%A6%E5%9B%BE"><span class="toc-list-text">厚度图</span></a></li></ol></div>
+    <div class="reading-rail__ruler" role="scrollbar" tabindex="0" aria-controls="drift-post-content" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-i18n-aria-label="post.reading_progress" aria-label="阅读进度">
+      <div class="reading-rail__ticks" aria-hidden="true">
+        
+        <span class="reading-rail__tick is-major" style="top: 0%"><b>0</b></span>
+        
+        <span class="reading-rail__tick" style="top: 1%"></span>
+        
+        <span class="reading-rail__tick" style="top: 2%"></span>
+        
+        <span class="reading-rail__tick" style="top: 3%"></span>
+        
+        <span class="reading-rail__tick" style="top: 4%"></span>
+        
+        <span class="reading-rail__tick" style="top: 5%"></span>
+        
+        <span class="reading-rail__tick" style="top: 6%"></span>
+        
+        <span class="reading-rail__tick" style="top: 7%"></span>
+        
+        <span class="reading-rail__tick" style="top: 8%"></span>
+        
+        <span class="reading-rail__tick" style="top: 9%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 10%"><b>10</b></span>
+        
+        <span class="reading-rail__tick" style="top: 11%"></span>
+        
+        <span class="reading-rail__tick" style="top: 12%"></span>
+        
+        <span class="reading-rail__tick" style="top: 13%"></span>
+        
+        <span class="reading-rail__tick" style="top: 14%"></span>
+        
+        <span class="reading-rail__tick" style="top: 15%"></span>
+        
+        <span class="reading-rail__tick" style="top: 16%"></span>
+        
+        <span class="reading-rail__tick" style="top: 17%"></span>
+        
+        <span class="reading-rail__tick" style="top: 18%"></span>
+        
+        <span class="reading-rail__tick" style="top: 19%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 20%"><b>20</b></span>
+        
+        <span class="reading-rail__tick" style="top: 21%"></span>
+        
+        <span class="reading-rail__tick" style="top: 22%"></span>
+        
+        <span class="reading-rail__tick" style="top: 23%"></span>
+        
+        <span class="reading-rail__tick" style="top: 24%"></span>
+        
+        <span class="reading-rail__tick" style="top: 25%"></span>
+        
+        <span class="reading-rail__tick" style="top: 26%"></span>
+        
+        <span class="reading-rail__tick" style="top: 27%"></span>
+        
+        <span class="reading-rail__tick" style="top: 28%"></span>
+        
+        <span class="reading-rail__tick" style="top: 29%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 30%"><b>30</b></span>
+        
+        <span class="reading-rail__tick" style="top: 31%"></span>
+        
+        <span class="reading-rail__tick" style="top: 32%"></span>
+        
+        <span class="reading-rail__tick" style="top: 33%"></span>
+        
+        <span class="reading-rail__tick" style="top: 34%"></span>
+        
+        <span class="reading-rail__tick" style="top: 35%"></span>
+        
+        <span class="reading-rail__tick" style="top: 36%"></span>
+        
+        <span class="reading-rail__tick" style="top: 37%"></span>
+        
+        <span class="reading-rail__tick" style="top: 38%"></span>
+        
+        <span class="reading-rail__tick" style="top: 39%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 40%"><b>40</b></span>
+        
+        <span class="reading-rail__tick" style="top: 41%"></span>
+        
+        <span class="reading-rail__tick" style="top: 42%"></span>
+        
+        <span class="reading-rail__tick" style="top: 43%"></span>
+        
+        <span class="reading-rail__tick" style="top: 44%"></span>
+        
+        <span class="reading-rail__tick" style="top: 45%"></span>
+        
+        <span class="reading-rail__tick" style="top: 46%"></span>
+        
+        <span class="reading-rail__tick" style="top: 47%"></span>
+        
+        <span class="reading-rail__tick" style="top: 48%"></span>
+        
+        <span class="reading-rail__tick" style="top: 49%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 50%"><b>50</b></span>
+        
+        <span class="reading-rail__tick" style="top: 51%"></span>
+        
+        <span class="reading-rail__tick" style="top: 52%"></span>
+        
+        <span class="reading-rail__tick" style="top: 53%"></span>
+        
+        <span class="reading-rail__tick" style="top: 54%"></span>
+        
+        <span class="reading-rail__tick" style="top: 55%"></span>
+        
+        <span class="reading-rail__tick" style="top: 56%"></span>
+        
+        <span class="reading-rail__tick" style="top: 57%"></span>
+        
+        <span class="reading-rail__tick" style="top: 58%"></span>
+        
+        <span class="reading-rail__tick" style="top: 59%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 60%"><b>60</b></span>
+        
+        <span class="reading-rail__tick" style="top: 61%"></span>
+        
+        <span class="reading-rail__tick" style="top: 62%"></span>
+        
+        <span class="reading-rail__tick" style="top: 63%"></span>
+        
+        <span class="reading-rail__tick" style="top: 64%"></span>
+        
+        <span class="reading-rail__tick" style="top: 65%"></span>
+        
+        <span class="reading-rail__tick" style="top: 66%"></span>
+        
+        <span class="reading-rail__tick" style="top: 67%"></span>
+        
+        <span class="reading-rail__tick" style="top: 68%"></span>
+        
+        <span class="reading-rail__tick" style="top: 69%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 70%"><b>70</b></span>
+        
+        <span class="reading-rail__tick" style="top: 71%"></span>
+        
+        <span class="reading-rail__tick" style="top: 72%"></span>
+        
+        <span class="reading-rail__tick" style="top: 73%"></span>
+        
+        <span class="reading-rail__tick" style="top: 74%"></span>
+        
+        <span class="reading-rail__tick" style="top: 75%"></span>
+        
+        <span class="reading-rail__tick" style="top: 76%"></span>
+        
+        <span class="reading-rail__tick" style="top: 77%"></span>
+        
+        <span class="reading-rail__tick" style="top: 78%"></span>
+        
+        <span class="reading-rail__tick" style="top: 79%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 80%"><b>80</b></span>
+        
+        <span class="reading-rail__tick" style="top: 81%"></span>
+        
+        <span class="reading-rail__tick" style="top: 82%"></span>
+        
+        <span class="reading-rail__tick" style="top: 83%"></span>
+        
+        <span class="reading-rail__tick" style="top: 84%"></span>
+        
+        <span class="reading-rail__tick" style="top: 85%"></span>
+        
+        <span class="reading-rail__tick" style="top: 86%"></span>
+        
+        <span class="reading-rail__tick" style="top: 87%"></span>
+        
+        <span class="reading-rail__tick" style="top: 88%"></span>
+        
+        <span class="reading-rail__tick" style="top: 89%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 90%"><b>90</b></span>
+        
+        <span class="reading-rail__tick" style="top: 91%"></span>
+        
+        <span class="reading-rail__tick" style="top: 92%"></span>
+        
+        <span class="reading-rail__tick" style="top: 93%"></span>
+        
+        <span class="reading-rail__tick" style="top: 94%"></span>
+        
+        <span class="reading-rail__tick" style="top: 95%"></span>
+        
+        <span class="reading-rail__tick" style="top: 96%"></span>
+        
+        <span class="reading-rail__tick" style="top: 97%"></span>
+        
+        <span class="reading-rail__tick" style="top: 98%"></span>
+        
+        <span class="reading-rail__tick" style="top: 99%"></span>
+        
+        <span class="reading-rail__tick is-major" style="top: 100%"><b>100</b></span>
+        
+      </div>
+      <span class="reading-rail__cursor" aria-hidden="true"></span>
+    </div>
+  </div>
+  <div class="reading-rail__hint"><span data-ui-lang="zh-CN">拖动刻度跳转 · 点击章节定位</span><span data-ui-lang="en">Drag the ruler · Click a chapter</span></div>
+</nav>
+
+
+  </aside>
+  
+</article>
+
+  </main>
+  
+<footer class="site-footer">
+  <div class="site-footer__inner">
+    <span class="site-footer__mark" aria-hidden="true"><svg viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" fill="currentColor"><rect x="5" y="1" width="2" height="10"/><rect x="1" y="5" width="10" height="2"/><rect x="3" y="3" width="1" height="1"/><rect x="8" y="3" width="1" height="1"/><rect x="3" y="8" width="1" height="1"/><rect x="8" y="8" width="1" height="1"/></svg></span>
+    <span>© 2025–2026 DoubleYe</span>
+    <span class="site-footer__links">
+      
+      <a target="_blank" rel="noopener" href="https://doubleye.me/blog/atom.xml">RSS</a>
+      <a href="https://hexo.io" target="_blank" rel="noopener"><span data-ui-lang="zh-CN">由 Hexo 驱动</span><span data-ui-lang="en">Powered by Hexo</span></a>
+    </span>
+  </div>
+</footer>
+
+  
+<script src="/js/language.js"></script>
+
+  
+<script src="/js/background.js"></script>
+
+  
+<script src="/js/theme.js"></script>
+
+  
+<script src="/js/reading-progress.js"></script>
+
+  
+
+</body>
+</html>

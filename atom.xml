@@ -5,8 +5,19 @@
   <id>https://doubleye.me/blog/atom.xml</id>
   <link href="https://doubleye.me/blog/"/>
   <link href="https://doubleye.me/blog/atom.xml" rel="self" type="application/atom+xml"/>
-  <updated>2026-11-19T00:00:00.000Z</updated>
+  <updated>2026-11-20T00:00:00.000Z</updated>
   <author><name>DoubleYe</name></author>
+  <entry>
+    <title>Gelly 的屏幕空间流体渲染</title>
+    <id>https://doubleye.me/blog/2026/11/20/rendering-digest-2026-11-20/</id>
+    <link href="https://doubleye.me/blog/2026/11/20/rendering-digest-2026-11-20/"/>
+    <published>2026-11-20T00:00:00.000Z</published>
+    <updated>2026-11-20T00:00:00.000Z</updated>
+    <summary type="text">Gelly 是 Garry’s Mod 的流体插件。开发者 Yog 在开发日志（2026 年 5 月 20 日）里放了一张早期截图：水已经聚成一片，表面还像一堆挤在一起的珠子。 那版沿用了经典的屏幕空间粒子渲染。每个粒子画一个朝向相机的四边形，片元着色器求视线与球面的交点，深度测试留下离相机最近的一层。直接从这张深度图算出来的法线会沿着每个球面转向，相邻粒子交界处的亮暗变化尤其明显。通常会先平滑深度，再从新深度图求法线。 Yog 后来改用窄范围深度滤波。当前像素只和深度接近的邻居混合，这样就不会把波峰和后方的水面抹在一起。波峰保住了，但边沿容易被挤成一条尖边。水片上的一些球粒也还看得出来。 把球拉成椭球NVIDIA FleX 会根据每个粒子附近的分布算出各向异性数据。Gelly 用这些数据设置椭球的朝向和轴长。薄水片里的粒子能沿着水片拉长，沿厚度方向压扁。原文的球与椭球对比里，同一组粒子拉长后，原先球与球之间的断口少了。 渲染一个椭球时，Gelly 先算出它在屏幕上的包围矩形，再在片元着色器里把视线变换到粒子的局部空间。在这个空间里，椭球恢复成球。求到交点后，再变换回去计算深度。求交多…</summary>
+    <category term="屏幕空间渲染"/>
+    <category term="流体渲染"/>
+    <category term="Garry&apos;s Mod"/>
+  </entry>
   <entry>
     <title>CORTAO 圆盘遮挡环境光</title>
     <id>https://doubleye.me/blog/2026/11/19/rendering-digest-2026-11-19/</id>
